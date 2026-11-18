@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f6b1f">
+  <meta name="description" content="Juego de cosecha ambientado en el conuco venezolano: siembra yuca, maíz, cacao y café.">
+  <title>Mi Conuco 🌾 — Juego de cosecha venezolano</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Franja tricolor -->
+  <div class="bandera" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header class="topbar">
+    <h1>🌾 Mi Conuco</h1>
+    <div class="stats">
+      <div class="stat" title="Bolívares">
+        <span class="stat-label">💰 Bs</span>
+        <strong id="dinero">0</strong>
+      </div>
+      <div class="stat nivel" title="Experiencia">
+        <span class="stat-label">⭐ Nivel <b id="nivel">1</b></span>
+        <div class="xp"><i id="xp-barra"></i></div>
+        <small id="xp-texto"></small>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ===== Conuco ===== -->
+    <section class="card" aria-labelledby="t-conuco">
+      <div class="card-head">
+        <h2 id="t-conuco">Tu conuco</h2>
+        <button id="btn-cosechar-todo" class="btn btn-primary" type="button">🧺 Cosechar todo</button>
+      </div>
+
+      <div id="grid" class="grid" aria-label="Parcelas del conuco"></div>
+
+      <h3 class="subtitulo">Semilla a sembrar</h3>
+      <div id="seedbar" class="seedbar"></div>
+      <p class="hint">Elige una semilla y toca una parcela vacía para sembrar. Cuando brille, tócala para cosechar. Los cultivos siguen creciendo aunque cierres el navegador.</p>
+    </section>
+
+    <!-- ===== Mercado ===== -->
+    <section class="card" aria-labelledby="t-mercado">
+      <h2 id="t-mercado">Mercado local</h2>
+      <div class="tabs" role="tablist">
+        <button id="tab-semillas" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-semillas" type="button">🌱 Semillas</button>
+        <button id="tab-cosecha" class="tab" role="tab" aria-selected="false" aria-controls="panel-cosecha" type="button">🧺 Cosecha</button>
+      </div>
+      <div id="panel-semillas" class="panel" role="tabpanel"></div>
+      <div id="panel-cosecha" class="panel" role="tabpanel" hidden></div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <span id="aviso-almacenamiento" class="aviso" hidden>⚠️ Tu navegador no permite guardar la partida (modo privado).</span>
+    <button id="btn-reiniciar" class="btn-link" type="button">Reiniciar partida</button>
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!-- Orden importa: cada archivo usa el anterior. Son scripts clásicos (sin módulos),
+       así que el juego también funciona abriendo index.html con doble clic. -->
+  <script src="js/config.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
