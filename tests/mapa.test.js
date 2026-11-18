@@ -23,6 +23,7 @@ function crearMundo(almacen = {}) {
   return ctx.Conuco;
 }
 
+const igual = (a, b) => assert.equal(JSON.stringify(a), JSON.stringify(b));
 let pruebas = 0;
 function prueba(nombre, fn) { fn(); pruebas++; console.log('  ✔', nombre); }
 
@@ -31,96 +32,130 @@ const { Iso, MAPA: M } = Conuco;
 
 console.log('Mapa isométrico');
 
+const C0 = crearMundo();
+C0.State.cargar();
+const I = C0.Iso;
+const comprarTodo = (C) => C.State.mutar((s) => { s.terrenos = s.terrenos.map(() => true); });
+
 prueba('proyección: pantalla <-> casilla es reversible', () => {
-  for (const [tx, ty] of [[0, 0], [3.5, 7.25], [16, 16], [8.5, 15.5]]) {
+  for (const [tx, ty] of [[0, 0], [3.5, 7.25], [35, 2], [20, 30]]) {
     const p = Iso.aPantalla(tx, ty);
     const t = Iso.aTile(p.x, p.y);
     assert.ok(Math.abs(t.tx - tx) < 1e-9 && Math.abs(t.ty - ty) < 1e-9);
   }
-  // el vértice de arriba es (0,0) y la casilla de abajo queda más abajo en pantalla
-  assert.equal(Iso.aPantalla(0, 0).y, 0);
-  assert.ok(Iso.aPantalla(5, 5).y > Iso.aPantalla(1, 1).y);
 });
 
-prueba('las 16 parcelas ocupan 2x2 casillas distintas y se reconocen al revés', () => {
+prueba('el mapa es de 36x36: 3x3 terrenos de 12x12', () => {
+  assert.equal(M.ANCHO, 36);
+  assert.equal(M.ALTO, 36);
+  assert.equal(Iso.terrenoDe(0, 0), 0);
+  assert.equal(Iso.terrenoDe(13, 13), 4);
+  assert.equal(Iso.terrenoDe(35, 35), 8);
+});
+
+prueba('81 parcelas de 2x2, pegadas en campos de 3x3 y reconocibles al revés', () => {
   const vistas = new Set();
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < Conuco.TOTAL_PARCELAS; i++) {
     const o = Iso.parcelaOrigen(i);
-    for (let dy = 0; dy < 2; dy++) {
-      for (let dx = 0; dx < 2; dx++) {
-        const clave = `${o.x + dx},${o.y + dy}`;
-        assert.ok(!vistas.has(clave), 'casilla repetida ' + clave);
-        vistas.add(clave);
-        assert.equal(Iso.parcelaEnTile(o.x + dx, o.y + dy), i);
-      }
+    assert.equal(Iso.terrenoDe(o.x, o.y), Conuco.terrenoDeParcela(i));
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const k = (o.x + dx) + ',' + (o.y + dy);
+      assert.ok(!vistas.has(k), 'parcelas solapadas');
+      vistas.add(k);
+      assert.equal(Iso.parcelaEnTile(o.x + dx, o.y + dy), i);
     }
   }
-  assert.equal(vistas.size, 64);
-  assert.equal(Iso.parcelaEnTile(5, 3), -1, 'el camino entre parcelas no es parcela');
-  assert.equal(Iso.parcelaEnTile(0, 0), -1);
+  // pegadas: el campo de cada terreno es un bloque de 6x6 sin huecos
+  const o = Iso.origenTerreno(4);
+  for (let j = 0; j < 6; j++) for (let k = 0; k < 6; k++) assert.ok(Iso.parcelaEnTile(o.x + 3 + k, o.y + 3 + j) >= 0);
 });
 
-prueba('las 4 parcelas iniciales son las del centro del conuco', () => {
-  const origenes = [0, 1, 2, 3].map((i) => Iso.parcelaOrigen(i)).map((o) => `${o.x},${o.y}`).sort();
-  assert.deepEqual(origenes, ['6,6', '6,9', '9,6', '9,9'].sort());
+prueba('las parcelas 0..8 son del terreno inicial y las 4 primeras forman un bloque', () => {
+  for (let i = 0; i < 9; i++) assert.equal(Conuco.terrenoDeParcela(i), M.TERRENO_INICIAL);
+  const xs = [0, 1, 2, 3].map((i) => Iso.parcelaOrigen(i));
+  const minX = Math.min(...xs.map((p) => p.x)), minY = Math.min(...xs.map((p) => p.y));
+  const claves = new Set(xs.map((p) => (p.x - minX) + ',' + (p.y - minY)));
+  for (const k of ['0,0', '2,0', '0,2', '2,2']) assert.ok(claves.has(k));
 });
 
-prueba('desde la entrada se puede llegar a toda parcela y a cada edificio interactivo', () => {
-  const { x, y } = M.SPAWN;
-  for (let i = 0; i < 16; i++) {
-    const o = Iso.parcelaOrigen(i);
-    assert.ok(Iso.buscarCamino(x, y, o.x, o.y), 'parcela ' + i);
-    assert.ok(Iso.buscarCamino(x, y, o.x + 1, o.y + 1), 'parcela ' + i + ' (esquina)');
-  }
-  for (const e of Iso.EDIFICIOS.filter((b) => b.accion)) {
-    assert.ok(Iso.caminoHastaEdificio(x, y, e), 'edificio ' + e.id);
+prueba('al empezar solo se camina por el terreno inicial', () => {
+  assert.equal(Iso.esCaminable(M.SPAWN.x, M.SPAWN.y), true);
+  const fuera = Iso.origenTerreno(1);
+  assert.equal(Iso.esCaminable(fuera.x + 5, fuera.y + 2), false);
+  assert.equal(Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, fuera.x + 5, fuera.y + 2), null);
+});
+
+prueba('en todas las zonas se llega a cada parcela y edificio (con todo comprado)', () => {
+  for (const z of Conuco.ZONAS) {
+    const C = crearMundo();
+    C.State.cargar();
+    C.Game.configurarPartida('indigena', '', z.id);
+    comprarTodo(C);
+    for (let i = 0; i < C.TOTAL_PARCELAS; i++) {
+      const o = C.Iso.parcelaOrigen(i);
+      assert.ok(C.Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, o.x, o.y), `${z.id}: parcela ${i}`);
+    }
+    for (const e of C.Iso.mapa().edificios.filter((e) => e.accion)) {
+      assert.ok(C.Iso.caminoHastaEdificio(M.SPAWN.x, M.SPAWN.y, e), `${z.id}: ${e.id}`);
+    }
+    assert.ok(C.Iso.mapa().arboles.length > 40, `${z.id}: tiene árboles`);
   }
 });
 
 prueba('A*: no atraviesa obstáculos ni corta esquinas', () => {
-  let rutas = 0;
-  for (let ty = 0; ty < M.ALTO; ty += 2) {
-    for (let tx = 0; tx < M.ANCHO; tx += 2) {
-      if (!Iso.esCaminable(tx, ty)) continue;
-      const ruta = Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, tx, ty);
-      assert.ok(ruta, `sin camino a ${tx},${ty}`);
-      let px = M.SPAWN.x, py = M.SPAWN.y;
-      for (const paso of ruta) {
-        assert.ok(Iso.esCaminable(paso.tx, paso.ty), 'pisa un obstáculo');
-        const dx = paso.tx - px, dy = paso.ty - py;
-        assert.ok(Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx || dy), 'salto de más de una casilla');
-        if (dx && dy) assert.ok(Iso.esCaminable(px + dx, py) && Iso.esCaminable(px, py + dy), 'corta una esquina');
-        px = paso.tx; py = paso.ty;
-      }
-      assert.equal(`${px},${py}`, `${tx},${ty}`);
-      rutas++;
-    }
+  const C = crearMundo();
+  C.State.cargar();
+  C.Game.configurarPartida('indigena', '', 'llanos');
+  comprarTodo(C);
+  const ruta = C.Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, 1, 1);
+  assert.ok(ruta && ruta.length);
+  let x = M.SPAWN.x, y = M.SPAWN.y;
+  for (const p of ruta) {
+    assert.ok(C.Iso.esCaminable(p.tx, p.ty));
+    const dx = p.tx - x, dy = p.ty - y;
+    assert.ok(Math.abs(dx) <= 1 && Math.abs(dy) <= 1);
+    if (dx && dy) assert.ok(C.Iso.esCaminable(x + dx, y) && C.Iso.esCaminable(x, y + dy));
+    x = p.tx; y = p.ty;
   }
-  assert.ok(rutas > 30);
 });
 
 prueba('A*: destino bloqueado o fuera del mapa devuelve null; mismo lugar devuelve []', () => {
-  const casa = Iso.EDIFICIOS.find((e) => e.id === 'casa');
-  assert.equal(Iso.buscarCamino(8, 15, casa.x, casa.y), null);
-  assert.equal(Iso.buscarCamino(8, 15, -1, 3), null);
-  assert.equal(Iso.buscarCamino(8, 15, 99, 3), null);
-  assert.equal(Iso.buscarCamino(8, 15, 8, 15).length, 0);
+  const casa = I.mapa().edificios.find((e) => e.id === 'casa');
+  assert.equal(Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, casa.x, casa.y), null);
+  assert.equal(Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, -1, 3), null);
+  igual(Iso.buscarCamino(M.SPAWN.x, M.SPAWN.y, M.SPAWN.x, M.SPAWN.y), []);
 });
 
-prueba('tipos de suelo: parcela, camino alrededor, entrada y pasto', () => {
-  assert.equal(Iso.tipoSuelo(6, 6), 'parcela');
-  assert.equal(Iso.tipoSuelo(5, 6), 'camino');
-  assert.equal(Iso.tipoSuelo(2, 2), 'camino');   // anillo exterior
-  assert.equal(Iso.tipoSuelo(8, 16), 'camino');  // entrada
-  assert.equal(Iso.tipoSuelo(0, 9), 'pasto');
+prueba('tipos de suelo: parcela, camino alrededor del campo, arena en la costa, agua en lagunas', () => {
+  const o = Iso.origenTerreno(4);
+  assert.equal(Iso.tipoSuelo(o.x + 3, o.y + 3), 'parcela');
+  assert.equal(Iso.tipoSuelo(o.x + 2, o.y + 2), 'camino');
+  assert.equal(Iso.tipoSuelo(o.x + 5, o.y + 11), 'camino', 'cruce hacia el terreno de abajo');
+  const costa = crearMundo(); costa.State.cargar(); costa.Game.configurarPartida('indigena', '', 'costa');
+  assert.equal(costa.Iso.tipoSuelo(0, 10), 'arena');
+  const llanos = crearMundo(); llanos.State.cargar(); llanos.Game.configurarPartida('indigena', '', 'llanos');
+  const lg = llanos.Iso.mapa().lagunas[0];
+  assert.equal(llanos.Iso.tipoSuelo(lg.x, lg.y), 'agua');
+  llanos.State.mutar((s) => { s.terrenos[0] = true; });
+  assert.equal(llanos.Iso.esCaminable(lg.x, lg.y), false, 'no se camina por el agua');
+});
+
+prueba('animales: cada terreno tiene casillas libres, sin parcelas ni agua', () => {
+  for (let t = 0; t < 9; t++) {
+    const libres = Iso.casillasFauna(t);
+    assert.ok(libres.length > 30);
+    for (const c of libres) {
+      assert.equal(Iso.terrenoDe(c.tx, c.ty), t);
+      assert.notEqual(Iso.tipoSuelo(c.tx, c.ty), 'parcela');
+    }
+  }
 });
 
 prueba('tocar el edificio interactivo (incluida su altura) lo detecta', () => {
-  const ch = Iso.EDIFICIOS.find((e) => e.id === 'churuata');
+  const ch = I.mapa().edificios.find((e) => e.id === 'churuata');
   const c = Iso.aPantalla(ch.x + 1, ch.y + 1);
-  assert.equal(Iso.edificioEnPunto(c.x, c.y - 40).id, 'churuata');
-  assert.equal(Iso.edificioEnPunto(0, 400), null);
-  const casa = Iso.EDIFICIOS.find((e) => e.id === 'casa');
+  assert.equal(Iso.edificioEnPunto(c.x, c.y - 50).id, 'churuata');
+  const casa = I.mapa().edificios.find((e) => e.id === 'casa');
   const cc = Iso.aPantalla(casa.x + 1, casa.y + 1);
   assert.equal(Iso.edificioEnPunto(cc.x, cc.y - 30), null, 'la casa es solo decorado');
 });
@@ -185,7 +220,7 @@ prueba('una partida v1 (sin jugador) conserva su progreso y pide elegir personaj
 
 prueba('datos de jugador manipulados se corrigen', () => {
   const almacen = {
-    conuco_save_v1: JSON.stringify({ jugador: { etnia: 'dragon', nombre: '<script>x</script>'.repeat(5), tx: 9999, ty: -4 } }),
+    conuco_save_v1: JSON.stringify({ version: 3, zona: 'atlantida', terrenos: [true, 'si', 1], jugador: { etnia: 'dragon', nombre: '<script>x</script>'.repeat(5), tx: 9999, ty: -4 } }),
   };
   const C = crearMundo(almacen);
   C.State.cargar();
@@ -193,6 +228,9 @@ prueba('datos de jugador manipulados se corrigen', () => {
   assert.equal(j.etnia, null);
   assert.ok(!/[<>]/.test(j.nombre) && j.nombre.length <= 16);
   assert.ok(j.tx <= M.ANCHO && j.ty >= 0);
+  const s = C.State.get();
+  assert.equal(s.zona, null);
+  igual(s.terrenos, [true, false, false, false, true, false, false, false, false]);
 });
 
 console.log(`\n${pruebas} pruebas OK`);

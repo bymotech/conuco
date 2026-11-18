@@ -4,94 +4,158 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#2f6b1f">
-  <meta name="description" content="Juego de cosecha ambientado en el conuco venezolano: siembra yuca, maíz, cacao y café en un mapa isométrico.">
+  <meta name="description" content="Juego de cosecha ambientado en el conuco venezolano: elige tu zona, siembra, cosecha y expande tu tierra en un mapa isométrico.">
   <title>Mi Conuco 🌾 — Juego de cosecha venezolano</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <!-- Franja tricolor -->
-  <div class="bandera" aria-hidden="true"><i></i><i></i><i></i></div>
+  <!-- ===== Mapa a pantalla completa ===== -->
+  <div class="mapa-caja">
+    <canvas id="mapa" aria-label="Mapa del conuco: toca un lugar para caminar hasta él"></canvas>
+  </div>
 
-  <header class="topbar">
-    <h1>🌾 Mi Conuco</h1>
-    <div class="stats">
-      <div class="stat" title="Bolívares">
-        <span class="stat-label">💰 Bs</span>
-        <strong id="dinero">0</strong>
-      </div>
-      <div class="stat nivel" title="Experiencia">
-        <span class="stat-label">⭐ Nivel <b id="nivel">1</b></span>
-        <div class="xp"><i id="xp-barra"></i></div>
-        <small id="xp-texto"></small>
+  <!-- ===== Barra de arriba: jugador, nivel y dinero ===== -->
+  <header class="hud-arriba">
+    <div class="hud-perfil">
+      <canvas id="mini-avatar" width="96" height="96" aria-hidden="true"></canvas>
+      <div class="hud-datos">
+        <div class="hud-nombre"><b id="hud-nombre">Conuquero</b> <small id="hud-zona"></small></div>
+        <div class="hud-nivel" title="Experiencia">
+          <span class="insignia">⭐ <b id="nivel">1</b></span>
+          <div class="xp"><i id="xp-barra"></i><small id="xp-texto"></small></div>
+        </div>
       </div>
     </div>
+    <div class="hud-derecha-arriba">
+      <div class="hud-dinero" title="Bolívares">💰 <strong id="dinero">0</strong> <small>Bs</small></div>
+      <button id="btn-menu" class="btn-redondo" type="button" aria-label="Menú" aria-expanded="false">☰</button>
+    </div>
+    <nav id="menu" class="menu" hidden>
+      <button id="btn-cambiar-avatar" type="button">🧑 Cambiar personaje</button>
+      <button id="btn-ver-guia" type="button">💬 Ver la guía otra vez</button>
+      <button id="btn-reiniciar" type="button" class="peligro">🗑️ Reiniciar partida</button>
+      <p id="aviso-almacenamiento" class="aviso" hidden>⚠️ Tu navegador no permite guardar la partida (modo privado).</p>
+    </nav>
   </header>
 
-  <main class="layout">
-    <!-- ===== Conuco (mapa isométrico) ===== -->
-    <section class="card" aria-labelledby="t-conuco">
-      <div class="card-head">
-        <h2 id="t-conuco">Tu conuco</h2>
-        <button id="btn-cosechar-todo" class="btn btn-primary" type="button">🧺 Cosechar todo</button>
+  <!-- ===== Botones de acción (derecha) ===== -->
+  <aside class="hud-lateral">
+    <button id="btn-tienda" class="btn-accion" type="button"><span class="ic">🌱</span><span>Semillas</span></button>
+    <button id="btn-mercado" class="btn-accion" type="button"><span class="ic">🧺</span><span>Vender</span><i id="badge-cosecha" class="badge" hidden></i></button>
+    <button id="btn-cosechar-todo" class="btn-accion verde" type="button"><span class="ic">🌾</span><span>Cosechar</span><i id="badge-listas" class="badge" hidden></i></button>
+    <div class="zoom-botones">
+      <button id="zoom-mas" class="btn-redondo chico" type="button" aria-label="Acercar">＋</button>
+      <button id="zoom-menos" class="btn-redondo chico" type="button" aria-label="Alejar">－</button>
+      <button id="zoom-centrar" class="btn-redondo chico" type="button" aria-label="Centrar en mi personaje">◎</button>
+    </div>
+  </aside>
+
+  <!-- ===== Semilla a sembrar (abajo) ===== -->
+  <footer class="hud-abajo">
+    <div class="seedbar-caja">
+      <span class="seedbar-titulo">Sembrar:</span>
+      <div id="seedbar" class="seedbar"></div>
+    </div>
+  </footer>
+
+  <!-- ===== Panel de tienda y mercado ===== -->
+  <section id="panel" class="panel-flotante" aria-labelledby="t-panel" hidden>
+    <div class="panel-cabeza">
+      <div class="tabs" role="tablist">
+        <button id="tab-semillas" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-semillas" type="button">🌱 Semillas</button>
+        <button id="tab-cosecha" class="tab" role="tab" aria-selected="false" aria-controls="panel-cosecha" type="button">🧺 Vender</button>
+      </div>
+      <h2 id="t-panel" class="oculto">Mercado local</h2>
+      <button id="btn-cerrar-panel" class="btn-cerrar" type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="panel-semillas" class="panel-lista" role="tabpanel"></div>
+    <div id="panel-cosecha" class="panel-lista" role="tabpanel" hidden></div>
+  </section>
+
+  <!-- ===== Configuración guiada (personaje, nombre y zona) ===== -->
+  <div id="asistente" class="modal" role="dialog" aria-modal="true" aria-labelledby="t-asistente" hidden>
+    <div class="modal-caja">
+      <div class="pasos-puntos" aria-hidden="true"><i></i><i></i><i></i></div>
+
+      <div class="paso" data-paso="1">
+        <div class="bienvenida-emojis" aria-hidden="true">🌽 🍠 🫘 ☕ 🍫</div>
+        <h2 id="t-asistente">¡Bienvenido a Mi Conuco!</h2>
+        <p class="modal-sub">Vas a fundar tu propio conuco en Venezuela. Siembra, cosecha, vende en el mercado y compra más tierra para crecer.</p>
+        <ul class="lista-pasos">
+          <li><b>1.</b> Elige tu personaje y tu nombre.</li>
+          <li><b>2.</b> Elige la región donde vas a sembrar.</li>
+          <li><b>3.</b> ¡A trabajar la tierra! Te iremos guiando.</li>
+        </ul>
+        <div class="modal-acciones"><button class="btn btn-primary" type="button" data-ir="2">Empezar →</button></div>
       </div>
 
-      <div class="mapa-caja">
-        <canvas id="mapa" aria-label="Mapa del conuco: toca un lugar para caminar hasta él"></canvas>
-        <div class="zoom-botones">
-          <button id="zoom-mas" class="btn-redondo" type="button" aria-label="Acercar">＋</button>
-          <button id="zoom-menos" class="btn-redondo" type="button" aria-label="Alejar">－</button>
-          <button id="zoom-centrar" class="btn-redondo" type="button" aria-label="Centrar en mi personaje">◎</button>
+      <div class="paso" data-paso="2" hidden>
+        <h2>¿Quién llega al conuco?</h2>
+        <p class="modal-sub">Elige tu personaje. Te acompañará por el mapa mientras siembras y cosechas.</p>
+        <div class="opciones-avatar">
+          <button type="button" class="opcion-avatar" data-etnia="indigena" aria-pressed="false">
+            <canvas width="280" height="340" aria-hidden="true"></canvas>
+            <b>Indígena</b>
+            <small></small>
+          </button>
+          <button type="button" class="opcion-avatar" data-etnia="espanol" aria-pressed="false">
+            <canvas width="280" height="340" aria-hidden="true"></canvas>
+            <b>Español colonizador</b>
+            <small></small>
+          </button>
+        </div>
+        <label class="campo-nombre">Tu nombre <span>(opcional)</span>
+          <input id="nombre-jugador" type="text" maxlength="16" placeholder="Conuquero" autocomplete="off">
+        </label>
+        <div class="modal-acciones">
+          <button id="btn-atras-2" class="btn" type="button" data-ir="1">← Atrás</button>
+          <button id="btn-siguiente-2" class="btn btn-primary" type="button" data-ir="3" disabled>Siguiente →</button>
         </div>
       </div>
 
-      <h3 class="subtitulo">Semilla a sembrar</h3>
-      <div id="seedbar" class="seedbar"></div>
-      <p class="hint">Toca una parcela y tu personaje caminará hasta ella: si está vacía siembra, si brilla cosecha, y si está bloqueada la compra. Arrastra para mover el mapa y usa la rueda o los botones para acercar. La 🌱 choza es la tienda de semillas y el puesto 🧺 es el mercado.</p>
-    </section>
-
-    <!-- ===== Mercado ===== -->
-    <section class="card" aria-labelledby="t-mercado">
-      <h2 id="t-mercado">Mercado local</h2>
-      <div class="tabs" role="tablist">
-        <button id="tab-semillas" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-semillas" type="button">🌱 Semillas</button>
-        <button id="tab-cosecha" class="tab" role="tab" aria-selected="false" aria-controls="panel-cosecha" type="button">🧺 Cosecha</button>
-      </div>
-      <div id="panel-semillas" class="panel" role="tabpanel"></div>
-      <div id="panel-cosecha" class="panel" role="tabpanel" hidden></div>
-    </section>
-  </main>
-
-  <footer class="pie">
-    <span id="aviso-almacenamiento" class="aviso" hidden>⚠️ Tu navegador no permite guardar la partida (modo privado).</span>
-    <button id="btn-cambiar-avatar" class="btn-link" type="button">Cambiar personaje</button>
-    <button id="btn-reiniciar" class="btn-link" type="button">Reiniciar partida</button>
-  </footer>
-
-  <!-- ===== Selección de personaje ===== -->
-  <div id="modal-avatar" class="modal" role="dialog" aria-modal="true" aria-labelledby="t-avatar" hidden>
-    <div class="modal-caja">
-      <h2 id="t-avatar">¿Quién llega al conuco?</h2>
-      <p class="modal-sub">Elige tu personaje. Te acompañará por el mapa mientras siembras y cosechas.</p>
-      <div class="opciones-avatar">
-        <button type="button" class="opcion-avatar" data-etnia="indigena" aria-pressed="false">
-          <canvas width="280" height="340" aria-hidden="true"></canvas>
-          <b>Indígena</b>
-          <small></small>
-        </button>
-        <button type="button" class="opcion-avatar" data-etnia="espanol" aria-pressed="false">
-          <canvas width="280" height="340" aria-hidden="true"></canvas>
-          <b>Español colonizador</b>
-          <small></small>
-        </button>
-      </div>
-      <label class="campo-nombre">Tu nombre <span>(opcional)</span>
-        <input id="nombre-jugador" type="text" maxlength="16" placeholder="Conuquero" autocomplete="off">
-      </label>
-      <div class="modal-acciones">
-        <button id="btn-cancelar-avatar" class="btn" type="button" hidden>Cancelar</button>
-        <button id="btn-comenzar" class="btn btn-primary" type="button" disabled>Comenzar</button>
+      <div class="paso" data-paso="3" hidden>
+        <h2>¿Dónde vas a sembrar?</h2>
+        <p class="modal-sub">Cada región de Venezuela tiene su paisaje, sus animales y sus cultivos.</p>
+        <div id="opciones-zona" class="opciones-zona"></div>
+        <div class="modal-acciones">
+          <button class="btn" type="button" data-ir="2">← Atrás</button>
+          <button id="btn-comenzar" class="btn btn-primary" type="button" disabled>¡A sembrar! 🌱</button>
+        </div>
       </div>
     </div>
+  </div>
+
+  <!-- ===== Confirmación (comprar terreno, reiniciar) ===== -->
+  <div id="confirmar" class="modal" role="alertdialog" aria-modal="true" aria-labelledby="t-confirmar" hidden>
+    <div class="modal-caja chica">
+      <div id="confirmar-icono" class="confirmar-icono" aria-hidden="true">🏞️</div>
+      <h2 id="t-confirmar"></h2>
+      <p id="confirmar-texto" class="modal-sub"></p>
+      <div class="modal-acciones">
+        <button id="confirmar-no" class="btn" type="button">Cancelar</button>
+        <button id="confirmar-si" class="btn btn-primary" type="button">Sí</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Guía de los primeros pasos ===== -->
+  <div id="guia-pulso" class="guia-pulso" hidden></div>
+  <div id="guia" class="guia" role="status" hidden>
+    <p id="guia-texto"></p>
+    <div class="guia-acciones">
+      <button id="guia-saltar" class="btn-link" type="button">Saltar guía</button>
+      <button id="guia-ok" class="btn btn-primary chico" type="button" hidden>¡Entendido!</button>
+    </div>
+    <i class="guia-flecha" aria-hidden="true"></i>
+  </div>
+
+  <!-- ===== Celebración al subir de nivel ===== -->
+  <canvas id="fiesta" class="fiesta" aria-hidden="true"></canvas>
+  <div id="fiesta-tarjeta" class="fiesta-tarjeta" role="alert" hidden>
+    <div class="fiesta-estrellas" aria-hidden="true">⭐ 🌟 ⭐</div>
+    <h2 id="fiesta-titulo"></h2>
+    <p id="fiesta-texto"></p>
+    <button id="fiesta-ok" class="btn btn-primary" type="button">¡Genial!</button>
   </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -105,6 +169,8 @@
   <script src="js/sprites.js"></script>
   <script src="js/escena.js"></script>
   <script src="js/mapa.js"></script>
+  <script src="js/fiesta.js"></script>
+  <script src="js/guia.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>

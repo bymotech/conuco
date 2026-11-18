@@ -14,6 +14,7 @@
   const G = Conuco.Game;
   const M = Conuco.MAPA;
   const POR_ID = Conuco.CULTIVOS_POR_ID;
+  const PPT = Conuco.CONFIG.PARCELAS_POR_TERRENO;
 
   // Texto primero y emojis como respaldo: si la fuente de emojis va primera, algunos navegadores
   // dibujan también los dígitos con ella y quedan con un espaciado raro.
@@ -21,10 +22,7 @@
 
   // Dónde crecen las plantas dentro de la parcela de 2x2 casillas (en casillas, por eje).
   // Los rubros grandes llevan menos plantas para que no se amontonen.
-  const SIEMBRA = {
-    maiz: [0.4, 1, 1.6], caraota: [0.4, 1, 1.6],
-    yuca: [0.6, 1.4], platano: [0.6, 1.4], cacao: [0.6, 1.4], cafe: [0.6, 1.4],
-  };
+  const siembra = (c) => (S.FORMAS_GRANDES.has(c.forma) ? [0.6, 1.4] : [0.4, 1, 1.6]);
 
   // ---------- Etiquetas de tamaño constante ----------
 
@@ -62,7 +60,7 @@
       const costo = G.costoParcela(o.estado);
       const alcanza = o.estado.dinero >= costo;
       enPantalla(ctx, c.x, c.y - 4, z, () => {
-        pildora(ctx, `${alcanza ? '🔓' : '🔒'} Bs ${costo.toLocaleString('es-VE')}`, alcanza ? 'rgba(47,107,31,0.92)' : 'rgba(50,40,30,0.82)');
+        pildora(ctx, `${alcanza ? '🔓' : '🔒'} ${costo.toLocaleString('es-VE')}`, alcanza ? 'rgba(47,107,31,0.88)' : 'rgba(50,40,30,0.72)', '#fff', 10);
       });
     } else if (info.tipo === 'creciendo') {
       const seg = Math.ceil(info.restanteMs / 1000);
@@ -86,7 +84,7 @@
     } else if (o.hover && o.hover.parcela === i && o.seleccion) { // parcela vacía bajo el cursor
       enPantalla(ctx, c.x, c.y - 12, z, () => {
         ctx.globalAlpha = 0.75; ctx.font = `26px ${FUENTE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(POR_ID[o.seleccion].emoji, 0, 0);
+        ctx.fillText(POR_ID[o.seleccion] ? POR_ID[o.seleccion].emoji : '', 0, 0);
       });
     }
   }
@@ -96,40 +94,73 @@
     enPantalla(ctx, c.x, c.y - e.alto - 12, z, () => pildora(ctx, e.etiqueta, 'rgba(60,40,15,0.85)', '#fff', 12));
   }
 
+  function etiquetaTerreno(ctx, t, o) {
+    const c = Iso.centroTerreno(t);
+    const p = Iso.aPantalla(c.tx, c.ty);
+    const info = G.puedeComprarTerreno(t, o.estado);
+    const precio = 'Bs ' + info.costo.toLocaleString('es-VE');
+    enPantalla(ctx, p.x, p.y - 62, o.cam.zoom, () => {
+      if (info.ok) pildora(ctx, `🔓 Comprar terreno · ${precio}`, 'rgba(47,107,31,0.95)', '#fff', 13);
+      else if (info.razon === 'dinero') pildora(ctx, `🔒 Terreno · ${precio}`, 'rgba(50,40,30,0.85)', '#fff', 12);
+      else pildora(ctx, '🔒 Terreno', 'rgba(50,40,30,0.7)', '#e9dcc4', 11);
+    });
+  }
+
   // ---------- Cuadro completo ----------
 
   /**
    * @param o { w, h, dpr, cam:{x,y,zoom}, estado, ahora(ms), hover:{tx,ty,parcela}|null,
-   *            avatar:{x,y,dir,frente,caminando,salto}|null, marcador, particulas, seleccion }
+   *            avatar:{x,y,dir,frente,caminando,salto}|null, marcador, particulas, seleccion,
+   *            fauna:[{tipo,x,y,dir,caminando,comiendo}], aves:[{tipo,x,y,alto,dir,sem}] }
    */
   function dibujar(ctx, o) {
     const { w, h, dpr, cam, estado, ahora } = o;
     const z = cam.zoom;
     const t = ahora / 1000;
+    const mapa = Iso.mapa();
+    const zona = mapa.zona;
 
     // 1. fondo
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const fondo = ctx.createLinearGradient(0, 0, 0, h);
-    fondo.addColorStop(0, '#d2ecad'); fondo.addColorStop(1, '#9ed071');
+    fondo.addColorStop(0, zona.fondo[0]); fondo.addColorStop(1, zona.fondo[1]);
     ctx.fillStyle = fondo; ctx.fillRect(0, 0, w, h);
 
     // cámara: el centro de la pantalla mira a (cam.x, cam.y) del mundo
     ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (w / 2 - cam.x * z), dpr * (h / 2 - cam.y * z));
+    // parte visible del mundo (para no dibujar lo que queda fuera)
+    const vx0 = cam.x - w / 2 / z - 90, vx1 = cam.x + w / 2 / z + 90;
+    const vy0 = cam.y - h / 2 / z - 40, vy1 = cam.y + h / 2 / z + 140;
+    const visible = (x, y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
 
     // 2. suelo
-    S.isla(ctx);
+    S.fondoZona(ctx, zona, t);
+    S.isla(ctx, zona);
+    const detalle = z > 0.45;
     for (let ty = 0; ty < M.ALTO; ty++) {
       for (let tx = 0; tx < M.ANCHO; tx++) {
-        S.sueloTile(ctx, tx, ty, Iso.tipoSuelo(tx, ty) === 'camino' ? 'camino' : 'pasto');
+        const p = Iso.aPantalla(tx + 0.5, ty + 0.5);
+        if (p.x < vx0 || p.x > vx1 || p.y < vy0 - 40 || p.y > vy1 - 100) continue;
+        const tipo = Iso.tipoSuelo(tx, ty);
+        S.sueloTile(ctx, tx, ty, tipo === 'parcela' ? 'pasto' : tipo, zona, detalle);
       }
     }
+    for (const lg of mapa.lagunas) S.laguna(ctx, lg, t);
 
-    // 3. canteros
-    estado.parcelas.forEach((p, i) => S.parcelaSuelo(ctx, i, !p.desbloqueada));
+    // 3. canteros (en terrenos ajenos se ven enmalezados)
+    estado.parcelas.forEach((p, i) => {
+      const propio = Iso.terrenoComprado(Conuco.terrenoDeParcela(i));
+      S.parcelaSuelo(ctx, i, !p.desbloqueada, zona);
+      if (propio && !p.desbloqueada) S.parcelaBloqueadaBorde(ctx, i);
+    });
 
-    // 4. resaltes
+    // 4. velo sobre los terrenos que no son tuyos
+    const ajenos = [];
+    for (let k = 0; k < estado.terrenos.length; k++) if (!estado.terrenos[k]) { ajenos.push(k); S.terrenoVelo(ctx, k); }
+
+    // 5. resaltes
     if (o.hover) {
-      if (o.hover.parcela >= 0) S.parcelaResalte(ctx, o.hover.parcela);
+      if (o.hover.parcela >= 0 && Iso.terrenoComprado(Iso.terrenoDe(o.hover.tx, o.hover.ty))) S.parcelaResalte(ctx, o.hover.parcela);
       else if (Iso.esCaminable(o.hover.tx, o.hover.ty)) S.tileResalte(ctx, o.hover.tx, o.hover.ty);
     }
     if (o.marcador) {
@@ -144,24 +175,35 @@
       }
     }
 
-    // 5. objetos ordenados por profundidad (más lejos primero)
+    // 6. objetos ordenados por profundidad (más lejos primero)
     const objs = [];
-    for (const e of Iso.EDIFICIOS) objs.push({ prof: e.x + e.w / 2 + e.y + e.d / 2, f: () => S.edificio(ctx, e, t) });
-    for (const a of Iso.ARBOLES) objs.push({ prof: a.x + a.y + 1, f: () => S.arbol(ctx, a, t) });
+    const agregar = (tx, ty, prof, f) => { const p = Iso.aPantalla(tx, ty); if (visible(p.x, p.y)) objs.push({ prof, f }); };
+    for (const e of mapa.edificios) agregar(e.x + e.w / 2, e.y + e.d / 2, e.x + e.w / 2 + e.y + e.d / 2, () => S.edificio(ctx, e, t));
+    for (const a of mapa.arboles) agregar(a.x + 0.5, a.y + 0.5, a.x + a.y + 1, () => S.arbol(ctx, a, t));
+    for (const k of ajenos) {
+      const c = Iso.centroTerreno(k);
+      const p = Iso.aPantalla(c.tx, c.ty);
+      agregar(c.tx, c.ty, c.tx + c.ty, () => S.letrero(ctx, p.x, p.y));
+    }
     estado.parcelas.forEach((p, i) => {
       if (!p.desbloqueada || !p.cultivo) return;
       const info = G.estadoParcela(p, ahora);
       const lista = info.tipo === 'lista';
       const o0 = Iso.parcelaOrigen(i);
-      for (const a of SIEMBRA[p.cultivo]) {
-        for (const b of SIEMBRA[p.cultivo]) {
+      const pos = siembra(info.cultivo);
+      for (const a of pos) {
+        for (const b of pos) {
           const tx = o0.x + a, ty = o0.y + b;
           const pp = Iso.aPantalla(tx, ty);
           const sem = Iso.hash(tx, ty, 4);
-          objs.push({ prof: tx + ty, f: () => S.planta(ctx, p.cultivo, pp.x, pp.y, info.pct, lista, t, sem) });
+          agregar(tx, ty, tx + ty, () => S.planta(ctx, info.cultivo, pp.x, pp.y, info.pct, lista, t, sem));
         }
       }
     });
+    for (const a of o.fauna || []) {
+      const pp = Iso.aPantalla(a.x, a.y);
+      agregar(a.x, a.y, a.x + a.y, () => S.animal(ctx, a.tipo, pp.x, pp.y, { dir: a.dir, t: t + a.sem * 10, caminando: a.caminando, comiendo: a.comiendo }));
+    }
     if (o.avatar && estado.jugador.etnia) {
       const a = o.avatar;
       const pp = Iso.aPantalla(a.x, a.y);
@@ -173,9 +215,20 @@
     objs.sort((u, v) => u.prof - v.prof);
     for (const ob of objs) ob.f();
 
-    // 6. etiquetas y partículas
-    estado.parcelas.forEach((p, i) => etiquetaParcela(ctx, i, p, o));
-    for (const e of Iso.EDIFICIOS) if (e.etiqueta) etiquetaEdificio(ctx, e, z);
+    // 7. aves en vuelo
+    for (const b of o.aves || []) {
+      const p = Iso.aPantalla(b.x, b.y);
+      if (visible(p.x, p.y - b.alto)) S.ave(ctx, b.tipo, p.x, p.y - b.alto, t, b.dir, b.sem);
+    }
+
+    // 8. etiquetas y partículas (tamaño constante en pantalla)
+    estado.parcelas.forEach((p, i) => {
+      if (i >= PPT && !p.desbloqueada) return; // las de terrenos ajenos llevan el letrero del terreno
+      const c = centroParcela(i);
+      if (visible(c.x, c.y)) etiquetaParcela(ctx, i, p, o);
+    });
+    for (const e of mapa.edificios) if (e.etiqueta) etiquetaEdificio(ctx, e, z);
+    for (const k of ajenos) etiquetaTerreno(ctx, k, o);
     if (o.avatar && estado.jugador.etnia && estado.jugador.nombre) {
       const pp = Iso.aPantalla(o.avatar.x, o.avatar.y);
       enPantalla(ctx, pp.x, pp.y - 66, z, () => pildora(ctx, estado.jugador.nombre, 'rgba(255,255,255,0.85)', '#3b2a18', 11));

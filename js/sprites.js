@@ -74,75 +74,139 @@
 
   // ---------- Terreno ----------
 
+  /** Fondo del mundo según la zona: montañas detrás de la isla (Andes) o el mar alrededor (Costa). */
+  function fondoZona(ctx, zona, t) {
+    const W = M.ANCHO, H = M.ALTO;
+    const Tp = P(0, 0), R = P(W, 0), B = P(W, H), Lp = P(0, H);
+    if (zona.mar) {
+      // agua clara cerca de la orilla y olas
+      const m = 2.2;
+      poli(ctx, [P(-m, -m), P(W + m, -m), P(W + m, H + m), P(-m, H + m)].map((p) => ({ x: p.x, y: p.y + 14 })), 'rgba(170,235,240,0.55)');
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for (let k = 0; k < 46; k++) {
+        const u = Iso.hash(k, 3, 1), v = Iso.hash(k, 7, 2);
+        const lado = k % 4;
+        const d = 3 + v * 9;
+        const pt = lado === 0 ? P(-d, u * H) : lado === 1 ? P(u * W, -d) : lado === 2 ? P(W + d, u * H) : P(u * W, H + d);
+        const o = Math.sin(t * 1.4 + k) * 4;
+        ctx.beginPath(); ctx.moveTo(pt.x - 10 + o, pt.y + 20); ctx.quadraticCurveTo(pt.x + o, pt.y + 15, pt.x + 10 + o, pt.y + 20); ctx.stroke();
+      }
+    }
+    if (zona.montanas) {
+      // cordillera detrás de los dos bordes de atrás
+      const picos = [];
+      for (let k = 0; k <= 12; k++) {
+        const u = k / 12;
+        picos.push({ p: lerp(Lp, Tp, u), h: 130 + Iso.hash(k, 1, 4) * 150, a: 120 + Iso.hash(k, 2, 4) * 90 });
+        picos.push({ p: lerp(Tp, R, u), h: 130 + Iso.hash(k, 5, 4) * 150, a: 120 + Iso.hash(k, 6, 4) * 90 });
+      }
+      picos.sort((a, b) => b.h - a.h);
+      for (const { p, h, a } of picos) {
+        const base = p.y + 40, cima = { x: p.x, y: p.y - h };
+        poli(ctx, [{ x: p.x - a, y: base }, cima, { x: p.x + a, y: base }], '#7d93a6');
+        poli(ctx, [cima, { x: p.x + a, y: base }, { x: p.x + a * 0.15, y: base }], '#6a8095');
+        const n = 0.26;
+        poli(ctx, [cima, { x: p.x + a * n, y: cima.y + h * n }, { x: p.x + a * 0.08, y: cima.y + h * n * 0.8 }, { x: p.x - a * 0.1, y: cima.y + h * n * 1.05 }, { x: p.x - a * n, y: cima.y + h * n }], '#f4f7fb');
+      }
+    }
+  }
+
   /** Borde de "isla" con tierra visible por los dos lados frontales. */
-  function isla(ctx) {
-    const W = M.ANCHO, H = M.ALTO, e = 24;
+  function isla(ctx, zona) {
+    const W = M.ANCHO, H = M.ALTO, e = 30;
+    const [cIzq, cDer, cPasto] = zona.borde;
     const T = P(0, 0), R = P(W, 0), B = P(W, H), L = P(0, H);
-    // sombra suave debajo
-    poli(ctx, [{ x: T.x, y: T.y + e + 10 }, { x: R.x + 6, y: R.y + e + 10 }, { x: B.x, y: B.y + e + 14 }, { x: L.x - 6, y: L.y + e + 10 }], 'rgba(40,80,30,0.16)');
-    poli(ctx, [L, B, { x: B.x, y: B.y + e }, { x: L.x, y: L.y + e }], '#7a5230');
-    poli(ctx, [B, R, { x: R.x, y: R.y + e }, { x: B.x, y: B.y + e }], '#8f6338');
-    // vetas de tierra
-    ctx.strokeStyle = 'rgba(60,35,15,0.25)'; ctx.lineWidth = 1.5;
-    for (let k = 1; k < 5; k++) {
-      const yy = 5 + k * 4;
+    poli(ctx, [{ x: T.x, y: T.y + e + 10 }, { x: R.x + 6, y: R.y + e + 10 }, { x: B.x, y: B.y + e + 16 }, { x: L.x - 6, y: L.y + e + 10 }], 'rgba(30,60,30,0.16)');
+    poli(ctx, [L, B, { x: B.x, y: B.y + e }, { x: L.x, y: L.y + e }], cIzq);
+    poli(ctx, [B, R, { x: R.x, y: R.y + e }, { x: B.x, y: B.y + e }], cDer);
+    ctx.strokeStyle = 'rgba(40,25,10,0.22)'; ctx.lineWidth = 1.5;
+    for (let k = 1; k < 6; k++) {
+      const yy = 6 + k * 4;
       ctx.beginPath(); ctx.moveTo(L.x, L.y + yy); ctx.lineTo(B.x, B.y + yy); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(B.x, B.y + yy); ctx.lineTo(R.x, R.y + yy); ctx.stroke();
     }
-    poli(ctx, [L, B, { x: B.x, y: B.y + 6 }, { x: L.x, y: L.y + 6 }], '#4f8a32');
-    poli(ctx, [B, R, { x: R.x, y: R.y + 6 }, { x: B.x, y: B.y + 6 }], '#5e9a3a');
-    poli(ctx, [T, R, B, L], '#79b84a');
+    poli(ctx, [L, B, { x: B.x, y: B.y + 6 }, { x: L.x, y: L.y + 6 }], cPasto);
+    poli(ctx, [B, R, { x: R.x, y: R.y + 6 }, { x: B.x, y: B.y + 6 }], cPasto);
   }
 
-  /** Una casilla de pasto o camino de tierra. */
-  function sueloTile(ctx, tx, ty, tipo) {
+  /** Una casilla de suelo. `detalle` = dibujar matas y flores (se omite con poco zoom). */
+  function sueloTile(ctx, tx, ty, tipo, zona, detalle) {
     const p = P(tx, ty);
     const cx = p.x, cy = p.y + HH;
     const h = Iso.hash(tx, ty);
+    rombo(ctx, cx, cy, HW + 0.8, HH + 0.4);
     if (tipo === 'camino') {
-      rombo(ctx, cx, cy, HW + 0.8, HH + 0.4);
-      ctx.fillStyle = `hsl(34, ${42 + h * 8}%, ${61 + h * 7}%)`;
+      ctx.fillStyle = zona.id === 'occidente' ? `hsl(30, ${36 + h * 8}%, ${66 + h * 6}%)` : `hsl(34, ${42 + h * 8}%, ${61 + h * 7}%)`;
       ctx.fill();
-      if (h > 0.4) { // piedritas
+      if (detalle && h > 0.45) {
         const ox = (Iso.hash(tx, ty, 2) - 0.5) * HW, oy = (Iso.hash(tx, ty, 3) - 0.5) * HH * 0.8;
         elipse(ctx, cx + ox, cy + oy, 3, 1.7, 'rgba(120,85,45,0.55)');
         elipse(ctx, cx + ox + 7, cy + oy + 2, 1.8, 1, 'rgba(120,85,45,0.45)');
       }
       return;
     }
-    rombo(ctx, cx, cy, HW + 0.8, HH + 0.4);
-    ctx.fillStyle = `hsl(${96 + h * 10}, ${44 + h * 8}%, ${51 + h * 6}%)`;
+    if (tipo === 'arena') {
+      ctx.fillStyle = `hsl(44, ${58 + h * 8}%, ${78 + h * 5}%)`; ctx.fill();
+      if (detalle && h > 0.8) elipse(ctx, cx, cy, 3, 1.6, '#f6e3d0');
+      return;
+    }
+    if (tipo === 'agua') { ctx.fillStyle = '#4aa8c9'; ctx.fill(); return; }
+    const [hue, sat, luz] = zona.pasto;
+    ctx.fillStyle = `hsl(${hue + h * 10}, ${sat + h * 8}%, ${luz + h * 6}%)`;
     ctx.fill();
+    if (!detalle) return;
     if (Iso.hash(tx, ty, 2) > 0.5) { // matas de pasto
       const ox = (Iso.hash(tx, ty, 3) - 0.5) * HW * 1.1, oy = (Iso.hash(tx, ty, 4) - 0.5) * HH * 0.9;
-      ctx.strokeStyle = 'rgba(40,110,40,0.55)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.strokeStyle = `hsla(${hue + 10}, ${sat + 10}%, ${luz - 22}%, 0.6)`; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
       for (let k = -1; k <= 1; k++) {
         ctx.beginPath(); ctx.moveTo(cx + ox + k * 2.2, cy + oy); ctx.lineTo(cx + ox + k * 3.2, cy + oy - 4.6); ctx.stroke();
       }
     }
     const f = Iso.hash(tx, ty, 5);
-    if (f > 0.92) { // florecitas
-      circulo(ctx, cx + (Iso.hash(tx, ty, 6) - 0.5) * HW, cy + (Iso.hash(tx, ty, 7) - 0.5) * HH * 0.7, 1.7,
-        ['#ffffff', '#ffe066', '#ff9fb2'][Math.floor(f * 100) % 3]);
+    if (f > 0.93) { // florecitas o piedras
+      const col = zona.id === 'occidente' ? '#b9a07a' : zona.id === 'andes' ? ['#ffffff', '#c9b6e8', '#ffe066'][Math.floor(f * 100) % 3] : ['#ffffff', '#ffe066', '#ff9fb2'][Math.floor(f * 100) % 3];
+      circulo(ctx, cx + (Iso.hash(tx, ty, 6) - 0.5) * HW, cy + (Iso.hash(tx, ty, 7) - 0.5) * HH * 0.7, 1.8, col);
     }
   }
 
+  /** Laguna de 2x2 casillas con orilla, reflejos y bora. */
+  function laguna(ctx, lg, t) {
+    const m = 0.12;
+    const A = P(lg.x + m, lg.y + m), Bq = P(lg.x + lg.w - m, lg.y + m), Cq = P(lg.x + lg.w - m, lg.y + lg.d - m), D = P(lg.x + m, lg.y + lg.d - m);
+    const c = P(lg.x + lg.w / 2, lg.y + lg.d / 2);
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, HW * 1.7, HH * 1.7, 0, 0, TAU); ctx.fillStyle = '#c9a66b'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x, c.y + 1, HW * 1.5, HH * 1.5, 0, 0, TAU);
+    const g = ctx.createLinearGradient(A.x, A.y, Cq.x, Cq.y); g.addColorStop(0, '#5dbad8'); g.addColorStop(1, '#2f86b0');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < 3; k++) {
+      const o = Math.sin(t * 1.2 + k * 2) * 5;
+      ctx.beginPath(); ctx.moveTo(c.x - 18 + k * 12 + o, c.y - 6 + k * 6); ctx.lineTo(c.x - 8 + k * 12 + o, c.y - 6 + k * 6); ctx.stroke();
+    }
+    for (const [dx, dy] of [[-26, 6], [20, -4], [8, 12]]) { // hojas de bora
+      elipse(ctx, c.x + dx, c.y + dy, 5, 2.6, '#5aa845');
+      circulo(ctx, c.x + dx + 2, c.y + dy - 1.5, 1.4, '#d9a8e8');
+    }
+    void Bq; void D;
+  }
+
   /** Esquinas (en píxeles) de la parcela `i`, con un pequeño margen hacia adentro. */
-  function esquinasParcela(i, m = 0.05) {
+  function esquinasParcela(i, m = 0.03) {
     const o = Iso.parcelaOrigen(i);
     const a = o.x + m, b = o.y + m, c = o.x + M.PARCELA_TAM - m, d = o.y + M.PARCELA_TAM - m;
     return { T: P(a, b), R: P(c, b), B: P(c, d), L: P(a, d), x0: a, y0: b, x1: c, y1: d };
   }
 
   /** Cantero de tierra de una parcela (con surcos) o, si está bloqueada, terreno enmalezado. */
-  function parcelaSuelo(ctx, i, bloqueada) {
+  function parcelaSuelo(ctx, i, bloqueada, zona) {
     const { T, R, B, L, x0, y0, x1, y1 } = esquinasParcela(i);
-    const e = 5;
+    const e = 4;
     poli(ctx, [L, B, { x: B.x, y: B.y + e }, { x: L.x, y: L.y + e }], bloqueada ? '#5c4d30' : '#4a2e16');
     poli(ctx, [B, R, { x: R.x, y: R.y + e }, { x: B.x, y: B.y + e }], bloqueada ? '#6e5e3b' : '#5d3a1b');
     if (bloqueada) {
-      poli(ctx, [T, R, B, L], '#74a24a');
-      ctx.strokeStyle = 'rgba(40,100,40,0.6)'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+      const [hue, sat, luz] = zona.pasto;
+      poli(ctx, [T, R, B, L], `hsl(${hue + 6}, ${sat - 6}%, ${luz - 6}%)`);
+      ctx.strokeStyle = `hsla(${hue + 10}, ${sat}%, ${luz - 26}%, 0.7)`; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
       for (let k = 0; k < 9; k++) { // malezas
         const u = x0 + (x1 - x0) * (0.12 + 0.76 * Iso.hash(i, k, 1));
         const v = y0 + (y1 - y0) * (0.12 + 0.76 * Iso.hash(i, k, 2));
@@ -151,9 +215,6 @@
           ctx.beginPath(); ctx.moveTo(p.x + s * 2, p.y); ctx.lineTo(p.x + s * 3.6, p.y - 6); ctx.stroke();
         }
       }
-      ctx.setLineDash([6, 4]); ctx.strokeStyle = '#d5b070'; ctx.lineWidth = 2.2;
-      poli(ctx, [T, R, B, L], null, '#d5b070');
-      ctx.setLineDash([]);
       return;
     }
     const g = ctx.createLinearGradient(T.x, T.y, B.x, B.y);
@@ -167,8 +228,37 @@
       linea(ctx, a, b, 'rgba(38,20,8,0.5)', 2.6);
       linea(ctx, { x: a.x + 1.6, y: a.y - 1 }, { x: b.x + 1.6, y: b.y - 1 }, 'rgba(255,225,175,0.14)', 1.2);
     }
-    // borde de madera
-    ctx.lineWidth = 2; poli(ctx, [T, R, B, L], null, '#4a2e16');
+    ctx.lineWidth = 1.4; poli(ctx, [T, R, B, L], null, 'rgba(60,35,15,0.8)');
+  }
+
+  /** Borde punteado de un campo de parcelas bloqueadas (parcelas sueltas por comprar). */
+  function parcelaBloqueadaBorde(ctx, i) {
+    const { T, R, B, L } = esquinasParcela(i, 0.08);
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
+    poli(ctx, [T, R, B, L], null, '#e9c983');
+    ctx.setLineDash([]);
+  }
+
+  /** Velo oscuro sobre un terreno que aún no es tuyo, con borde punteado. */
+  function terrenoVelo(ctx, t) {
+    const o = Iso.origenTerreno(t), n = M.TERRENO;
+    const pts = [P(o.x, o.y), P(o.x + n, o.y), P(o.x + n, o.y + n), P(o.x, o.y + n)];
+    poli(ctx, pts, 'rgba(45,40,30,0.36)');
+    ctx.setLineDash([10, 7]); ctx.lineWidth = 2.5;
+    const q = [P(o.x + 0.15, o.y + 0.15), P(o.x + n - 0.15, o.y + 0.15), P(o.x + n - 0.15, o.y + n - 0.15), P(o.x + 0.15, o.y + n - 0.15)];
+    poli(ctx, q, null, 'rgba(255,240,200,0.6)');
+    ctx.setLineDash([]);
+  }
+
+  /** Letrero de madera "SE VENDE" en el centro de un terreno bloqueado. */
+  function letrero(ctx, x, y) {
+    elipse(ctx, x, y + 1, 12, 4, 'rgba(0,0,0,0.25)');
+    linea(ctx, { x: x - 8, y }, { x: x - 8, y: y - 30 }, '#5a3a1c', 3);
+    linea(ctx, { x: x + 8, y }, { x: x + 8, y: y - 30 }, '#5a3a1c', 3);
+    rr(ctx, -20 + x, y - 44, 40, 20, 3, '#c8935a');
+    rr(ctx, -20 + x, y - 44, 40, 4, 2, '#dcae76');
+    ctx.fillStyle = '#5a3418'; ctx.font = '800 8px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SE VENDE', x, y - 33);
   }
 
   /** Contorno brillante para resaltar una parcela (al pasar el cursor). */
@@ -198,62 +288,123 @@
 
   const BAYAS = [[-6, -9], [-2, -13], [3, -12], [7, -8], [-4, -6], [1, -8], [5, -5]];
 
+  /** Formas grandes: llevan 2x2 plantas por parcela en vez de 3x3. */
+  const FORMAS_GRANDES = new Set(['mata', 'platano', 'arbolito', 'cocotero', 'rastrera', 'pina', 'parra']);
+
   /**
-   * Una planta de un rubro. `prog` va de 0 a 1; `listo` = lista para cosechar.
+   * Una planta de un rubro (objeto de CULTIVOS). `prog` va de 0 a 1; `listo` = lista para cosechar.
    * Crece de brote a planta adulta; al estar lista muestra el fruto característico.
    */
-  function planta(ctx, id, x, y, prog, listo, t, sem) {
+  function planta(ctx, c, x, y, prog, listo, t, sem) {
     const s = listo ? 1 : 0.24 + 0.76 * Math.min(1, prog / 0.92);
     const bal = Math.sin(t * 1.7 + sem * 6.28) * 1.4 * s;
+    const fr = c.fruto;
+    const conFruto = prog > 0.6 || listo;
     elipse(ctx, x, y + 1, 6 * s + 3, 2.6 * s + 1.4, 'rgba(0,0,0,0.2)');
     if (prog < 0.28 && !listo) { brote(ctx, x, y, prog, bal); return; }
 
-    switch (id) {
-      case 'maiz': {
+    switch (c.forma) {
+      case 'tallo': { // maíz
         const h = 40 * s, tx = x + bal, ty = y - h;
         linea(ctx, { x, y }, { x: tx, y: ty }, '#4f8f2f', 2.6 * Math.max(0.6, s));
         for (let k = 0; k < 3; k++) {
           const f = 0.3 + 0.24 * k;
           hoja(ctx, x + bal * f, y - h * f, k % 2 ? -0.45 : Math.PI + 0.45, 16 * s, 4.4 * s, k % 2 ? '#5fae3a' : '#4a9a30');
         }
-        if (prog > 0.6 || listo) {
+        if (conFruto) {
           ctx.save();
           ctx.translate(x + bal * 0.55 + 3 * s, y - h * 0.52); ctx.rotate(-0.25);
           elipse(ctx, 0, 0, 3.4 * s, 7.2 * s, '#7fbf4a');
-          if (listo) elipse(ctx, 0.4, -1.2 * s, 2.4 * s, 5.4 * s, '#f4c430');
+          if (listo) elipse(ctx, 0.4, -1.2 * s, 2.4 * s, 5.4 * s, fr);
           ctx.restore();
         }
         ctx.strokeStyle = '#d8c07a'; ctx.lineWidth = 1; ctx.lineCap = 'round';
         for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx + k * 2.3 * s, ty - 5.5 * s); ctx.stroke(); }
         break;
       }
-      case 'yuca': {
+      case 'espiga': { // arroz
+        const verde = listo ? '#b9b34e' : '#6db33f';
+        for (let k = -3; k <= 3; k++) {
+          const tip = { x: x + k * 2.6 * s + bal, y: y - (22 + Math.abs(k % 2) * 5) * s };
+          linea(ctx, { x: x + k * 0.8, y }, tip, verde, 1.5);
+          if (conFruto) {
+            const caida = listo ? 5 : 2;
+            for (let g = 0; g < 4; g++) circulo(ctx, tip.x + (k < 0 ? -1 : 1) * g * 0.9, tip.y + g * 1.6 + caida * 0.3, 1.2, listo ? fr : '#a9c96a');
+          }
+        }
+        break;
+      }
+      case 'mata': { // yuca
         const a = { x: x + bal * 0.8 - 3 * s, y: y - 22 * s }, b = { x: x + bal + 3 * s, y: y - 27 * s };
         linea(ctx, { x: x - 1, y }, a, '#9b4a3a', 2.2 * s + 0.5);
         linea(ctx, { x: x + 1, y }, b, '#a85848', 2.2 * s + 0.5);
         for (const top of [a, b]) {
-          for (let k = 0; k < 6; k++) {
-            hoja(ctx, top.x, top.y, -Math.PI / 2 + (k - 2.5) * 0.52, 15 * s, 4.4 * s, k % 2 ? '#2f7d32' : '#3b9140');
-          }
+          for (let k = 0; k < 6; k++) hoja(ctx, top.x, top.y, -Math.PI / 2 + (k - 2.5) * 0.52, 15 * s, 4.4 * s, k % 2 ? '#2f7d32' : '#3b9140');
         }
-        if (listo) { // raíces asomando
-          elipse(ctx, x - 5, y + 1, 5, 2.4, '#c9a27a', 0.3);
+        if (listo) {
+          elipse(ctx, x - 5, y + 1, 5, 2.4, fr, 0.3);
           elipse(ctx, x + 5, y + 1.5, 5.5, 2.6, '#bf9468', -0.25);
           elipse(ctx, x, y + 3, 4.5, 2.2, '#d2ad86', 0.05);
         }
         break;
       }
-      case 'caraota': {
-        const r = s;
+      case 'raiz': { // zanahoria, papa, cebolla, ajo
+        if (c.id === 'cebolla' || c.id === 'ajo') {
+          for (let k = -2; k <= 2; k++) linea(ctx, { x: x + k, y: y - 2 }, { x: x + k * 3 * s + bal, y: y - (18 + (k % 2) * 4) * s }, k % 2 ? '#4f9a3c' : '#62ad48', 2);
+        } else if (c.id === 'zanahoria') {
+          for (let k = -2; k <= 2; k++) {
+            const tip = { x: x + k * 3.6 * s + bal, y: y - 16 * s };
+            linea(ctx, { x, y: y - 1 }, tip, '#4f9a3c', 1.3);
+            circulo(ctx, tip.x, tip.y, 3 * s, k % 2 ? '#5fae3a' : '#4a9a30');
+          }
+        } else { // papa
+          circulo(ctx, x - 5 * s, y - 7 * s, 6 * s, '#3f8f3a'); circulo(ctx, x + 5 * s, y - 7 * s, 6 * s, '#357d33');
+          circulo(ctx, x + bal * 0.4, y - 12 * s, 6.5 * s, '#4aa043');
+          if (conFruto) for (const [dx, dy] of [[-4, -15], [3, -14]]) circulo(ctx, x + dx * s, y + dy * s, 1.5, '#e6d6f5');
+        }
+        if (listo) {
+          if (c.id === 'zanahoria') poli(ctx, [{ x: x - 3.4, y: y - 1 }, { x: x + 3.4, y: y - 1 }, { x, y: y + 6 }], fr);
+          else if (c.id === 'papa') { elipse(ctx, x - 5, y + 1, 4, 2.8, fr); elipse(ctx, x + 4, y + 2, 4.4, 3, '#b8925a'); }
+          else elipse(ctx, x, y, 5, 4, fr);
+        }
+        break;
+      }
+      case 'arbusto': { // tomate, ají, pimentón, caraota, fresa
+        const bajo = c.id === 'fresa' ? 0.6 : 1;
+        const r = s * bajo;
         circulo(ctx, x - 5 * r, y - 6 * r, 7 * r, '#3f8f3a');
         circulo(ctx, x + 5 * r, y - 6 * r, 7 * r, '#357d33');
-        circulo(ctx, x, y - 11 * r, 8 * r, '#4aa043');
+        circulo(ctx, x + bal * 0.3, y - 11 * r, 8 * r, '#4aa043');
         circulo(ctx, x - 2 * r, y - 13 * r, 4 * r, '#63b858');
-        if (prog > 0.6 || listo) {
+        if (!conFruto) break;
+        if (c.id === 'caraota') {
           for (const [dx, dy] of [[-8, -4], [0, -3], [8, -5]]) {
             ctx.save(); ctx.translate(x + dx * r, y + dy * r); ctx.rotate(0.35 * (dx < 0 ? 1 : -1));
-            elipse(ctx, 0, 0, 1.8 * r, 5.2 * r, listo ? '#2a1f24' : '#6f9f45');
+            elipse(ctx, 0, 0, 1.8 * r, 5.2 * r, listo ? fr : '#6f9f45');
             ctx.restore();
+          }
+        } else {
+          const tam = c.id === 'pimenton' ? 3.6 : c.id === 'aji' ? 2.2 : 2.8;
+          const col = listo ? fr : '#8fc35a';
+          for (const [dx, dy] of [[-6, -8], [5, -10], [0, -5], [7, -4], [-3, -13]]) {
+            if (c.id === 'aji') elipse(ctx, x + dx * r, y + dy * r, tam * 0.7, tam * 1.3, col, 0.4);
+            else circulo(ctx, x + dx * r, y + dy * r, tam * r + 0.4, col);
+          }
+        }
+        break;
+      }
+      case 'rastrera': { // patilla, melón
+        for (const [dx, dy, rr2] of [[-9, -2, 6], [8, -3, 6], [0, -6, 7], [-3, 2, 5]]) circulo(ctx, x + dx * s, y + dy * s, rr2 * s, dx > 0 ? '#3f8f3a' : '#4aa043');
+        ctx.strokeStyle = '#3b7d2c'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x - 12 * s, y); ctx.quadraticCurveTo(x, y - 9 * s, x + 12 * s, y - 1); ctx.stroke();
+        if (conFruto) {
+          const k = listo ? 1 : 0.6;
+          elipse(ctx, x + 2, y - 2, 8 * k, 5.6 * k, listo ? fr : '#7fb84a');
+          if (c.id === 'patilla') {
+            ctx.strokeStyle = 'rgba(25,70,25,0.7)'; ctx.lineWidth = 1.3;
+            for (let j = -1; j <= 1; j++) { ctx.beginPath(); ctx.ellipse(x + 2 + j * 3 * k, y - 2, 1.2 * k, 5.2 * k, 0, 0, TAU); ctx.stroke(); }
+          } else {
+            elipse(ctx, x, y - 4, 3 * k, 1.6 * k, 'rgba(255,255,255,0.35)');
           }
         }
         break;
@@ -267,30 +418,93 @@
           hoja(ctx, tx, ty, ang, 27 * s, 1.1, 'rgba(30,80,30,0.45)');
         });
         if (listo) {
-          for (let k = 0; k < 5; k++) elipse(ctx, tx + 4 + k * 0.6, ty + 8 + k * 2.6, 2.4, 5, '#f4d03f', 0.4 - k * 0.05);
+          for (let k = 0; k < 5; k++) elipse(ctx, tx + 4 + k * 0.6, ty + 8 + k * 2.6, 2.4, 5, fr, 0.4 - k * 0.05);
           elipse(ctx, tx + 5, ty + 20, 2.6, 3.4, '#7a2e5a');
         }
         break;
       }
-      case 'cacao': {
-        linea(ctx, { x, y }, { x, y: y - 22 * s }, '#6b4423', 3.8 * s + 0.4);
-        [[-8, -26, 8, '#2f7a33'], [8, -27, 8, '#3a8c3c'], [0, -33, 9, '#46a048'], [-2, -24, 7, '#2f7a33']].forEach(([dx, dy, r, c]) => {
-          circulo(ctx, x + dx * s + bal * 0.5, y + dy * s, r * s, c);
-        });
-        if (prog > 0.6 || listo) {
-          for (const [dx, dy] of [[-4, -14], [4, -10], [0, -18]]) {
-            elipse(ctx, x + dx * s, y + dy * s, 2.7 * s, 4.4 * s, listo ? '#e0802b' : '#7ab648', 0.3);
+      case 'pina': {
+        for (let k = 0; k < 9; k++) {
+          const a = -Math.PI / 2 + (k - 4) * 0.36;
+          hoja(ctx, x, y - 2, a, 16 * s, 3 * s, k % 2 ? '#4f8f5a' : '#5fa36a');
+        }
+        if (conFruto) {
+          const k = listo ? 1 : 0.65;
+          elipse(ctx, x, y - 10 * k, 5.4 * k, 7.4 * k, listo ? fr : '#8fb35a');
+          ctx.strokeStyle = 'rgba(120,70,10,0.45)'; ctx.lineWidth = 0.9;
+          for (let j = -1; j <= 1; j++) { ctx.beginPath(); ctx.moveTo(x - 5 * k, y - 10 * k + j * 3); ctx.lineTo(x + 5 * k, y - 13 * k + j * 3); ctx.stroke(); }
+          for (let j = -2; j <= 2; j++) hoja(ctx, x, y - 17 * k, -Math.PI / 2 + j * 0.35, 8 * k, 2, '#3f8f4a');
+        }
+        break;
+      }
+      case 'cocotero': {
+        const cx = x + bal + 4 * s, cy = y - 34 * s;
+        ctx.strokeStyle = '#8c6b44'; ctx.lineWidth = 3.4 * s + 0.6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x, y - 18 * s, cx, cy); ctx.stroke();
+        for (let k = 0; k < 7; k++) {
+          const a = (k * TAU) / 7;
+          hoja(ctx, cx, cy, Math.atan2(Math.sin(a) * 0.45 + 0.35, Math.cos(a)), 20 * s, 4.6 * s, k % 2 ? '#2f8a3d' : '#3da04c');
+        }
+        if (conFruto) for (const [dx, dy] of [[-2.6, 3], [2.6, 3.4], [0, 5.6]]) circulo(ctx, cx + dx, cy + dy, 2.6 * s, listo ? fr : '#6f9f45');
+        break;
+      }
+      case 'girasol': {
+        const tx = x + bal, ty = y - 40 * s;
+        linea(ctx, { x, y }, { x: tx, y: ty }, '#4f8f2f', 2.4);
+        hoja(ctx, x + bal * 0.4, y - 16 * s, Math.PI + 0.5, 10 * s, 5 * s, '#4a9a30');
+        hoja(ctx, x + bal * 0.6, y - 24 * s, -0.5, 10 * s, 5 * s, '#5fae3a');
+        if (conFruto) {
+          const k = listo ? 1 : 0.6;
+          for (let p = 0; p < 12; p++) { const a = (p / 12) * TAU; elipse(ctx, tx + Math.cos(a) * 5.4 * k, ty + Math.sin(a) * 5.4 * k, 3 * k, 1.5 * k, fr, a); }
+          circulo(ctx, tx, ty, 4 * k, '#6b4423');
+        } else circulo(ctx, tx, ty, 3, '#7fbf4a');
+        break;
+      }
+      case 'cana': {
+        for (let k = -1; k <= 1; k++) {
+          const bx = x + k * 4, h = (40 + k * 4) * s, tip = { x: bx + bal, y: y - h };
+          linea(ctx, { x: bx, y }, tip, listo ? '#c9b35a' : fr, 3);
+          for (let n = 1; n < 4; n++) { const pz = lerp({ x: bx, y }, tip, n / 4); linea(ctx, { x: pz.x - 1.8, y: pz.y }, { x: pz.x + 1.8, y: pz.y }, 'rgba(70,90,30,0.6)', 1); }
+          hoja(ctx, tip.x, tip.y + 4, k < 0 ? Math.PI + 0.6 : -0.6, 15 * s, 3 * s, '#5fae3a');
+          hoja(ctx, tip.x, tip.y + 12, k < 0 ? -0.5 : Math.PI + 0.5, 13 * s, 2.6 * s, '#4a9a30');
+        }
+        break;
+      }
+      case 'parra': { // uva: emparrado con racimos
+        const hgt = 30 * s;
+        linea(ctx, { x: x - 12, y }, { x: x - 12, y: y - hgt }, '#6b4a2e', 2.4);
+        linea(ctx, { x: x + 12, y: y - 2 }, { x: x + 12, y: y - 2 - hgt }, '#6b4a2e', 2.4);
+        for (let k = 0; k < 6; k++) circulo(ctx, x - 12 + k * 4.8 + bal * 0.3, y - hgt - 2 + Math.sin(k) * 2, 5.4 * s, k % 2 ? '#3f8f3a' : '#4aa043');
+        if (conFruto) {
+          for (const dx of [-6, 4]) {
+            for (let f = 0; f < 4; f++) for (let g = 0; g <= 3 - f; g++) circulo(ctx, x + dx + g * 2.4 - (3 - f) * 1.2, y - hgt + 4 + f * 2.4, 1.5, listo ? fr : '#9cc45a');
           }
         }
         break;
       }
-      default: { // cafe
-        circulo(ctx, x, y - 9 * s, 9 * s, '#245f2e');
-        circulo(ctx, x - 7 * s, y - 7 * s, 7 * s, '#2a6d33');
-        circulo(ctx, x + 7 * s, y - 7 * s, 7 * s, '#2a6d33');
-        circulo(ctx, x - 2 * s, y - 12 * s, 5 * s, '#3c8b3f');
-        if (prog > 0.45 && !listo) for (const [dx, dy] of BAYAS.slice(0, 4)) circulo(ctx, x + dx * s, y + dy * s, 1.3, '#ffffff');
-        if (prog > 0.7 || listo) for (const [dx, dy] of BAYAS) circulo(ctx, x + dx * s, y + dy * s, 1.9 * s + 0.4, listo ? '#c8212b' : '#7fa03a');
+      default: { // arbolito: cacao, café, durazno, mango
+        if (c.id === 'cafe') {
+          circulo(ctx, x, y - 9 * s, 9 * s, '#245f2e');
+          circulo(ctx, x - 7 * s, y - 7 * s, 7 * s, '#2a6d33');
+          circulo(ctx, x + 7 * s, y - 7 * s, 7 * s, '#2a6d33');
+          circulo(ctx, x - 2 * s, y - 12 * s, 5 * s, '#3c8b3f');
+          if (prog > 0.45 && !listo) for (const [dx, dy] of BAYAS.slice(0, 4)) circulo(ctx, x + dx * s, y + dy * s, 1.3, '#ffffff');
+          if (conFruto) for (const [dx, dy] of BAYAS) circulo(ctx, x + dx * s, y + dy * s, 1.9 * s + 0.4, listo ? fr : '#7fa03a');
+          break;
+        }
+        linea(ctx, { x, y }, { x, y: y - 22 * s }, '#6b4423', 3.8 * s + 0.4);
+        const copa = c.id === 'durazno' ? ['#4d9a44', '#5aa84f', '#66b85a'] : ['#2f7a33', '#3a8c3c', '#46a048'];
+        [[-8, -26, 8, 0], [8, -27, 8, 1], [0, -33, 9, 2], [-2, -24, 7, 0]].forEach(([dx, dy, r, ci]) => {
+          circulo(ctx, x + dx * s + bal * 0.5, y + dy * s, r * s, copa[ci]);
+        });
+        if (c.id === 'durazno' && prog > 0.4 && !listo) for (const [dx, dy] of [[-6, -30], [6, -32], [0, -36]]) circulo(ctx, x + dx * s, y + dy * s, 1.6, '#f7b6c8');
+        if (conFruto) {
+          const pos = c.id === 'cacao' ? [[-4, -14], [4, -10], [0, -18]] : [[-6, -26], [6, -28], [1, -34], [-2, -22]];
+          for (const [dx, dy] of pos) {
+            if (c.id === 'cacao') elipse(ctx, x + dx * s, y + dy * s, 2.7 * s, 4.4 * s, listo ? fr : '#7ab648', 0.3);
+            else circulo(ctx, x + dx * s, y + dy * s, 2.6 * s, listo ? fr : '#8fbf4a');
+          }
+        }
       }
     }
   }
@@ -335,12 +549,119 @@
     for (const [dx, dy] of [[-6, -48], [8, -50], [-14, -36], [14, -38]]) circulo(ctx, x + dx + sway, y + dy, 3.2, '#6aa84a');
   }
 
+  function moriche(ctx, x, y, t, sem) { // palma de los llanos: tronco recto y hojas en abanico
+    const sway = Math.sin(t * 1.1 + sem * 5) * 1.6;
+    const cx = x + sway, cy = y - 80;
+    elipse(ctx, x, y + 1, 16, 6, 'rgba(0,0,0,0.2)');
+    linea(ctx, { x, y }, { x: cx, y: cy }, '#7d6a52', 6.5);
+    for (let k = 1; k < 8; k++) linea(ctx, { x: x + (cx - x) * k / 8 - 3, y: y - 80 * k / 8 }, { x: x + (cx - x) * k / 8 + 3, y: y - 80 * k / 8 + 1 }, 'rgba(60,45,30,0.35)', 1);
+    for (let k = 0; k < 11; k++) {
+      const a = Math.PI + 0.15 + (k / 10) * (Math.PI - 0.3);
+      const largo = 26 + (k % 3) * 4;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(largo, -7); ctx.lineTo(largo + 3, 0); ctx.lineTo(largo, 7); ctx.closePath();
+      ctx.fillStyle = k % 2 ? '#3f8f3d' : '#4fa64a'; ctx.fill();
+      ctx.restore();
+    }
+    for (let k = 0; k < 4; k++) hoja(ctx, cx, cy, 0.4 + k * 0.7, 22, 6, k % 2 ? '#2f7d35' : '#3b9140');
+    for (const [dx, dy] of [[-3, 6], [3, 7], [0, 9]]) circulo(ctx, cx + dx, cy + dy, 2.6, '#8a3d22');
+  }
+
+  function saman(ctx, x, y, t, sem) { // copa ancha como sombrilla
+    const sway = Math.sin(t * 0.8 + sem * 5) * 0.8;
+    elipse(ctx, x, y + 2, 34, 12, 'rgba(0,0,0,0.2)');
+    linea(ctx, { x, y }, { x: x - 2, y: y - 28 }, '#5e4632', 9);
+    linea(ctx, { x: x - 2, y: y - 26 }, { x: x - 18, y: y - 38 }, '#5e4632', 5);
+    linea(ctx, { x: x - 2, y: y - 26 }, { x: x + 18, y: y - 40 }, '#5e4632', 5);
+    [[-24, -42, 14, '#3d8a3a'], [22, -44, 15, '#3d8a3a'], [0, -50, 18, '#4c9c46'], [-12, -50, 14, '#56a84f'], [14, -52, 13, '#56a84f'], [-30, -38, 9, '#357d33'], [30, -40, 9, '#357d33']]
+      .forEach(([dx, dy, r, c]) => elipse(ctx, x + dx + sway, y + dy, r * 1.2, r * 0.75, c));
+    for (const [dx, dy] of [[-10, -54], [12, -56], [0, -46], [-22, -44]]) circulo(ctx, x + dx + sway, y + dy, 1.8, '#f2a1c0');
+  }
+
+  function pino(ctx, x, y, t, sem) {
+    const sway = Math.sin(t * 1 + sem * 5) * 0.8;
+    elipse(ctx, x, y + 1, 14, 5, 'rgba(0,0,0,0.22)');
+    linea(ctx, { x, y }, { x, y: y - 14 }, '#5a3f28', 5);
+    for (let k = 0; k < 4; k++) {
+      const base = y - 10 - k * 15, ancho = 20 - k * 4;
+      poli(ctx, [{ x: x - ancho, y: base }, { x: x + sway * (k + 1) * 0.3, y: base - 26 }, { x: x + ancho, y: base }], k % 2 ? '#1f5f3a' : '#2a7045');
+      poli(ctx, [{ x: x + sway * (k + 1) * 0.3, y: base - 26 }, { x: x + ancho, y: base }, { x: x + ancho * 0.2, y: base }], 'rgba(0,0,0,0.15)');
+    }
+  }
+
+  function frailejon(ctx, x, y, t, sem) { // planta del páramo: tallo grueso, roseta lanuda y flores amarillas
+    const sway = Math.sin(t * 1.3 + sem * 5) * 1;
+    elipse(ctx, x, y + 1, 10, 4, 'rgba(0,0,0,0.2)');
+    rr(ctx, x - 4, y - 24, 8, 24, 3, '#8a7a5c');
+    for (let k = 0; k < 4; k++) linea(ctx, { x: x - 4, y: y - 4 - k * 5 }, { x: x + 4, y: y - 2 - k * 5 }, 'rgba(70,60,40,0.4)', 1.2);
+    for (let k = 0; k < 12; k++) hoja(ctx, x + sway, y - 26, -Math.PI / 2 + (k - 5.5) * 0.28, 15, 4.6, k % 2 ? '#b9c9a4' : '#cfdcb9');
+    for (const [dx, dy] of [[-8, -46], [6, -48], [0, -52]]) {
+      linea(ctx, { x: x + sway, y: y - 32 }, { x: x + dx + sway, y: y + dy + 4 }, '#a6b48a', 1.2);
+      circulo(ctx, x + dx + sway, y + dy, 3, '#f5c518');
+      circulo(ctx, x + dx + sway, y + dy, 1.2, '#c48a12');
+    }
+  }
+
+  function cardon(ctx, x, y, t, sem) { // cactus columnar del semiárido larense y falconiano
+    elipse(ctx, x, y + 1, 12, 4.5, 'rgba(0,0,0,0.2)');
+    const col = '#5f8f4a', luz = '#76a85d';
+    const brazo = (lado, h0, h1) => {
+      rr(ctx, x + lado * 6 - (lado < 0 ? 12 : 0), y - h0 - 6, 12, 6, 3, col);
+      rr(ctx, x + lado * 12 - 3.5, y - h1, 7, h1 - h0, 3.5, col);
+      rr(ctx, x + lado * 12 - 1.5, y - h1 + 2, 2, h1 - h0 - 4, 1, luz);
+    };
+    brazo(-1, 26, 52); brazo(1, 34, 62);
+    rr(ctx, x - 5, y - 74, 10, 74, 5, col);
+    rr(ctx, x - 2, y - 72, 2.6, 70, 1.3, luz);
+    if (sem > 0.5) circulo(ctx, x, y - 75, 2.6, '#f2f0e0');
+  }
+
+  function cuji(ctx, x, y, t, sem) { // árbol espinoso de copa plana
+    const sway = Math.sin(t * 0.9 + sem * 5) * 0.8;
+    elipse(ctx, x, y + 1, 24, 8, 'rgba(0,0,0,0.18)');
+    ctx.strokeStyle = '#5d4630'; ctx.lineCap = 'round'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 6, y - 18, x - 2, y - 34); ctx.stroke();
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(x + 2, y - 20); ctx.lineTo(x + 16, y - 36); ctx.moveTo(x - 1, y - 28); ctx.lineTo(x - 16, y - 38); ctx.stroke();
+    [[-16, -42, 12], [14, -42, 13], [0, -46, 14], [-26, -38, 7], [25, -38, 7]].forEach(([dx, dy, r], k) =>
+      elipse(ctx, x + dx + sway, y + dy, r * 1.3, r * 0.45, k % 2 ? '#7f9a46' : '#8faa52'));
+  }
+
+  function tuna(ctx, x, y, t, sem) { // cactus de paletas
+    elipse(ctx, x, y + 1, 12, 4, 'rgba(0,0,0,0.2)');
+    const pal = [[0, -10, 7, 10, 0], [-7, -24, 6, 8.5, -0.4], [7, -25, 6, 8.5, 0.4], [1, -36, 5, 7, 0.1]];
+    pal.forEach(([dx, dy, rx, ry, a], k) => {
+      elipse(ctx, x + dx, y + dy, rx, ry, k % 2 ? '#6f9e52' : '#7fb05f', a);
+      for (let p = 0; p < 3; p++) circulo(ctx, x + dx + (p - 1) * 2.4, y + dy + (p % 2) * 2.4, 0.7, '#e8e4c8');
+    });
+    if (sem > 0.4) { circulo(ctx, x - 9, y - 32, 2.2, '#d63a5f'); circulo(ctx, x + 6, y - 43, 2.2, '#d63a5f'); }
+  }
+
+  function bucare(ctx, x, y, t, sem) { // árbol de sombra de los cacaotales, de flores naranja
+    const sway = Math.sin(t * 0.9 + sem * 5) * 1;
+    elipse(ctx, x, y + 1, 22, 8, 'rgba(0,0,0,0.2)');
+    linea(ctx, { x, y }, { x: x + 1, y: y - 30 }, '#6e5a48', 6);
+    [[-14, -40, 13, '#e8642c'], [12, -42, 13, '#f07a33'], [0, -54, 15, '#e8642c'], [-4, -36, 11, '#d9541f'], [-20, -30, 8, '#f07a33'], [20, -32, 8, '#d9541f']]
+      .forEach(([dx, dy, r, c]) => circulo(ctx, x + dx + sway, y + dy, r, c));
+    for (const [dx, dy] of [[-6, -46], [8, -48], [-14, -34], [14, -36]]) circulo(ctx, x + dx + sway, y + dy, 3, '#5f9a45');
+  }
+
+  function uvero(ctx, x, y, t, sem) { // uva de playa: arbusto de hojas redondas
+    const sway = Math.sin(t * 1.1 + sem * 5) * 0.8;
+    elipse(ctx, x, y + 1, 18, 6, 'rgba(0,0,0,0.2)');
+    linea(ctx, { x, y }, { x: x - 4, y: y - 14 }, '#7a5a3c', 4);
+    linea(ctx, { x, y }, { x: x + 5, y: y - 12 }, '#7a5a3c', 3.5);
+    [[-10, -18, 9], [9, -18, 9], [0, -26, 10], [-4, -14, 7], [8, -28, 6]].forEach(([dx, dy, r], k) =>
+      circulo(ctx, x + dx + sway, y + dy, r, k % 2 ? '#4f9a3a' : ['#5fae47', '#c0532f'][k === 4 ? 1 : 0]));
+    for (const [dx, dy] of [[-4, -20], [6, -22]]) { for (let g = 0; g < 3; g++) circulo(ctx, x + dx + sway, y + dy + g * 2.2, 1.4, '#6b2f5a'); }
+  }
+
+  const ARBOL = { palma, mango, araguaney, moriche, saman, pino, frailejon, cardon, cuji, tuna, bucare, uvero };
+
   function arbol(ctx, a, t) {
     const p = P(a.x + 0.5, a.y + 0.5);
     const sem = Iso.hash(a.x, a.y, 9);
-    if (a.tipo === 'palma') palma(ctx, p.x, p.y, t, sem);
-    else if (a.tipo === 'mango') mango(ctx, p.x, p.y, t, sem);
-    else araguaney(ctx, p.x, p.y, t, sem);
+    (ARBOL[a.tipo] || palma)(ctx, p.x + (sem - 0.5) * 10, p.y + (Iso.hash(a.x, a.y, 8) - 0.5) * 6, t, sem);
   }
 
   // ---------- Edificios ----------
@@ -468,6 +789,183 @@
     else puesto(ctx, o, t);
   }
 
+  // ---------- Animales ----------
+
+  // Cuadrúpedos: medidas del cuerpo (rx, ry), largo de las patas y colores.
+  const CUADRUPEDOS = {
+    vaca:     { rx: 14, ry: 8,   pata: 9,  piel: '#f4f1ea', mancha: '#2f2b28', cabeza: [6, 5],   hocico: '#eaa9a0', cuernos: '#e8dcc0', cola: '#2f2b28' },
+    caballo:  { rx: 13, ry: 7,   pata: 12, piel: '#8b5a2b', crin: '#3b2414', cabeza: [5.5, 4], cuello: 9, hocico: '#6e4420', cola: '#3b2414' },
+    chiguire: { rx: 11, ry: 7.5, pata: 4,  piel: '#8a6a45', cabeza: [6.5, 5.5], hocico: '#6e5236', orejasCortas: true },
+    oveja:    { rx: 10, ry: 7,   pata: 6,  piel: '#f5f2ea', lana: true, cabeza: [4.5, 4], cara: '#3a3330', patas: '#3a3330', cola: '#f5f2ea' },
+    chivo:    { rx: 9,  ry: 5.5, pata: 8,  piel: '#efe7d4', mancha: '#8a5a35', cabeza: [4.5, 3.6], cuernosAtras: '#9a8a70', barba: true, cola: '#efe7d4' },
+    burro:    { rx: 11, ry: 6.5, pata: 9,  piel: '#8d8a85', crin: '#4a4643', cabeza: [5, 4], cuello: 6, hocico: '#e9e4dc', orejasLargas: true, cola: '#4a4643' },
+    cochino:  { rx: 10, ry: 7,   pata: 4,  piel: '#f2a7a0', cabeza: [5.5, 5], trompa: '#e98d86', colaRizada: true },
+  };
+
+  function cuadrupedo(ctx, a, fase, comiendo, t) {
+    const h = a.pata;
+    const cy = -h - a.ry * 0.6;
+    const patasCol = a.patas || a.piel;
+    const oscuro = 'rgba(0,0,0,0.18)';
+    // patas de atrás (lado lejano)
+    for (const [bx, f] of [[-a.rx * 0.55, -fase], [a.rx * 0.55, fase]]) {
+      linea(ctx, { x: bx + 2, y: cy + a.ry * 0.5 }, { x: bx + 2 + f * 2.6, y: -0.5 }, patasCol, 3.2);
+      linea(ctx, { x: bx + 2, y: cy + a.ry * 0.5 }, { x: bx + 2 + f * 2.6, y: -0.5 }, oscuro, 3.2);
+    }
+    // cola
+    if (a.cola) linea(ctx, { x: -a.rx + 1, y: cy - 2 }, { x: -a.rx - 3 + Math.sin(t * 3) * 1.5, y: cy + a.ry * 0.9 }, a.cola, 1.8);
+    if (a.colaRizada) { ctx.strokeStyle = a.piel; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(-a.rx - 1.5, cy - 2, 2.2, 0, Math.PI * 1.6); ctx.stroke(); }
+    // cuerpo
+    if (a.lana) {
+      for (let k = 0; k < 7; k++) circulo(ctx, -a.rx * 0.7 + k * a.rx * 0.23, cy + (k % 2 ? -2 : 1.5), a.ry * 0.75, k % 2 ? a.piel : '#e9e4d8');
+    } else {
+      elipse(ctx, 0, cy, a.rx, a.ry, a.piel);
+      elipse(ctx, 0, cy + a.ry * 0.45, a.rx * 0.8, a.ry * 0.4, 'rgba(0,0,0,0.08)');
+    }
+    if (a.mancha) { elipse(ctx, -a.rx * 0.3, cy - 1.5, a.rx * 0.32, a.ry * 0.45, a.mancha, 0.3); elipse(ctx, a.rx * 0.35, cy + 1, a.rx * 0.2, a.ry * 0.35, a.mancha, -0.2); }
+    // patas de adelante (lado cercano)
+    for (const [bx, f] of [[-a.rx * 0.55, fase], [a.rx * 0.55, -fase]]) {
+      linea(ctx, { x: bx, y: cy + a.ry * 0.5 }, { x: bx + f * 2.6, y: 0 }, patasCol, 3.4);
+      elipse(ctx, bx + f * 2.6, 0, 2, 1, '#3a2a1e');
+    }
+    // cuello y cabeza
+    const baja = comiendo ? 1 : 0;
+    const hx = a.rx + (a.cuello ? 3 : 1), hy = cy - (a.cuello || 3) + baja * (h + a.ry * 0.4);
+    if (a.cuello) {
+      poli(ctx, [{ x: a.rx * 0.55, y: cy - a.ry * 0.7 }, { x: a.rx * 0.9, y: cy + a.ry * 0.3 }, { x: hx + 1, y: hy + 2 }, { x: hx - 3, y: hy - 2 }], a.piel);
+      if (a.crin) linea(ctx, { x: a.rx * 0.55, y: cy - a.ry * 0.7 }, { x: hx - 3, y: hy - 3 }, a.crin, 2.4);
+    }
+    const [crx, cry] = a.cabeza;
+    elipse(ctx, hx + crx * 0.5, hy, crx, cry, a.cara || a.piel, 0.15 + baja * 0.6);
+    if (a.hocico) elipse(ctx, hx + crx * 1.25, hy + cry * 0.35 + baja * 2, crx * 0.55, cry * 0.6, a.hocico);
+    if (a.trompa) { elipse(ctx, hx + crx * 1.35, hy + 1, 2, 2.6, a.trompa); circulo(ctx, hx + crx * 1.45, hy + 0.2, 0.5, '#8a4a44'); circulo(ctx, hx + crx * 1.45, hy + 1.8, 0.5, '#8a4a44'); }
+    // orejas, cuernos, barba
+    if (a.orejasLargas) { elipse(ctx, hx - 1, hy - cry - 4, 1.6, 5, a.piel, -0.3); elipse(ctx, hx + 2, hy - cry - 4, 1.6, 5, a.piel, 0.2); }
+    else if (a.orejasCortas) circulo(ctx, hx - 1, hy - cry + 0.5, 1.8, a.piel);
+    else elipse(ctx, hx - 2, hy - cry * 0.4, 3, 1.4, a.cara || a.piel, -0.4);
+    if (a.cuernos) { linea(ctx, { x: hx, y: hy - cry + 1 }, { x: hx - 2, y: hy - cry - 3 }, a.cuernos, 1.6); linea(ctx, { x: hx + 2, y: hy - cry + 1 }, { x: hx + 4, y: hy - cry - 3 }, a.cuernos, 1.6); }
+    if (a.cuernosAtras) { ctx.strokeStyle = a.cuernosAtras; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, hy - cry + 1); ctx.quadraticCurveTo(hx - 2, hy - cry - 5, hx - 5, hy - cry - 2); ctx.stroke(); }
+    if (a.barba) poli(ctx, [{ x: hx + crx * 0.9, y: hy + cry * 0.6 }, { x: hx + crx * 1.3, y: hy + cry * 0.6 }, { x: hx + crx * 1.05, y: hy + cry + 3 }], '#d8cdb4');
+    circulo(ctx, hx + crx * 0.75, hy - cry * 0.25, 0.9, '#1a1410');
+  }
+
+  function gallina(ctx, fase, comiendo, t) {
+    const pico = comiendo ? Math.max(0, Math.sin(t * 9)) * 4 : 0;
+    linea(ctx, { x: -1.5, y: -6 }, { x: -1.5 + fase, y: 0 }, '#e2a43a', 1.4);
+    linea(ctx, { x: 1.5, y: -6 }, { x: 1.5 - fase, y: 0 }, '#e2a43a', 1.4);
+    poli(ctx, [{ x: -8, y: -12 }, { x: -11, y: -18 }, { x: -6, y: -14 }], '#3a2a20');
+    elipse(ctx, 0, -10, 7, 5, '#f4efe4');
+    elipse(ctx, -1, -9, 4, 2.6, '#e0d8c8', 0.2);
+    const hx = 5 + pico * 0.5, hy = -15 + pico;
+    circulo(ctx, hx, hy, 3.2, '#f4efe4');
+    elipse(ctx, hx - 0.5, hy - 3.2, 1.6, 1.4, '#d8322a');
+    poli(ctx, [{ x: hx + 2.6, y: hy - 0.5 }, { x: hx + 5.4, y: hy + 0.6 }, { x: hx + 2.6, y: hy + 1.4 }], '#f0b33a');
+    elipse(ctx, hx + 1.4, hy + 2.6, 0.9, 1.4, '#d8322a');
+    circulo(ctx, hx + 1, hy - 0.6, 0.6, '#1a1410');
+  }
+
+  function corocora(ctx, fase, comiendo, t) { // ibis escarlata de los llanos
+    const roja = '#e3402e';
+    linea(ctx, { x: -1, y: -12 }, { x: -1 + fase * 1.5, y: 0 }, '#c43a2a', 1.3);
+    linea(ctx, { x: 2, y: -12 }, { x: 2 - fase * 1.5, y: 0 }, '#c43a2a', 1.3);
+    elipse(ctx, 0, -15, 7, 4.6, roja, -0.2);
+    poli(ctx, [{ x: -6, y: -16 }, { x: -11, y: -14 }, { x: -6, y: -13 }], '#2a1a1a');
+    const baja = comiendo ? 9 : 0;
+    ctx.strokeStyle = roja; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(5, -17); ctx.quadraticCurveTo(9, -23 + baja * 0.4, 7, -27 + baja * 1.4); ctx.stroke();
+    circulo(ctx, 7, -27 + baja * 1.4, 2.4, roja);
+    ctx.strokeStyle = '#3a2a2a'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(8.5, -27 + baja * 1.4); ctx.quadraticCurveTo(13, -26 + baja * 1.4, 14, -21 + baja * 1.4); ctx.stroke();
+  }
+
+  function pelicano(ctx, fase, comiendo, t) {
+    linea(ctx, { x: -2, y: -7 }, { x: -2 + fase, y: 0 }, '#6a5a4a', 1.8);
+    linea(ctx, { x: 2, y: -7 }, { x: 2 - fase, y: 0 }, '#6a5a4a', 1.8);
+    elipse(ctx, 0, -13, 9, 6.5, '#8a8076', -0.2);
+    elipse(ctx, -2, -13, 6, 3.5, '#6f665d', -0.2);
+    linea(ctx, { x: 5, y: -16 }, { x: 6, y: -24 }, '#f2ede2', 3.4);
+    circulo(ctx, 6.4, -25.5, 3, '#f2ede2');
+    poli(ctx, [{ x: 8, y: -27 }, { x: 20, y: -22 }, { x: 8, y: -24 }], '#d9a14a');
+    elipse(ctx, 12, -21.5, 4, 1.8, '#c98f40');
+    circulo(ctx, 7, -26.4, 0.7, '#1a1410');
+  }
+
+  function iguana(ctx, fase, comiendo, t) {
+    ctx.strokeStyle = '#5c8f3a'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-6, -3); ctx.quadraticCurveTo(-14, -2 + Math.sin(t * 3) * 1.5, -20, -0.5); ctx.stroke();
+    for (const [x0, f] of [[-4, fase], [4, -fase]]) {
+      linea(ctx, { x: x0, y: -3 }, { x: x0 - 2 + f, y: 0 }, '#4f7d32', 1.6);
+      linea(ctx, { x: x0, y: -3 }, { x: x0 + 2 - f, y: 0 }, '#4f7d32', 1.6);
+    }
+    elipse(ctx, 0, -4, 8, 3, '#6fa845');
+    for (let k = 0; k < 6; k++) poli(ctx, [{ x: -5 + k * 2, y: -6.6 }, { x: -4 + k * 2, y: -9 }, { x: -3 + k * 2, y: -6.6 }], '#4f7d32');
+    elipse(ctx, 9.5, -5, 3.6, 2.4, '#7cb850');
+    circulo(ctx, 10.5, -5.8, 0.6, '#1a1410');
+  }
+
+  function cangrejo(ctx, fase, comiendo, t) {
+    const roj = '#d6452e';
+    for (let k = -1; k <= 1; k++) {
+      linea(ctx, { x: -4, y: -3 + k }, { x: -9, y: 0 + k * 1.6 + fase * 0.6 }, roj, 1.2);
+      linea(ctx, { x: 4, y: -3 + k }, { x: 9, y: 0 + k * 1.6 - fase * 0.6 }, roj, 1.2);
+    }
+    elipse(ctx, 0, -4, 6, 3.6, roj);
+    const pinza = Math.sin(t * 6) * 0.3;
+    elipse(ctx, -7, -8, 2.6, 2, '#e8583e', pinza); elipse(ctx, 7, -8, 2.6, 2, '#e8583e', -pinza);
+    linea(ctx, { x: -1.6, y: -6.5 }, { x: -1.6, y: -9 }, roj, 0.9); linea(ctx, { x: 1.6, y: -6.5 }, { x: 1.6, y: -9 }, roj, 0.9);
+    circulo(ctx, -1.6, -9.4, 0.9, '#1a1410'); circulo(ctx, 1.6, -9.4, 0.9, '#1a1410');
+  }
+
+  const PEQUENOS = { gallina, corocora, pelicano, iguana, cangrejo };
+
+  /**
+   * Animal en el suelo. (x,y) = punto entre las patas.
+   * o: { dir: 1|-1, t: segundos, caminando: bool, comiendo: bool }
+   */
+  function animal(ctx, tipo, x, y, o = {}) {
+    const t = o.t || 0;
+    const fase = o.caminando ? Math.sin(t * 9) : 0;
+    const q = CUADRUPEDOS[tipo];
+    const ancho = q ? q.rx + 3 : 8;
+    elipse(ctx, x, y, ancho, ancho * 0.35, 'rgba(0,0,0,0.22)');
+    ctx.save();
+    ctx.translate(x, y - (o.caminando ? Math.abs(Math.cos(t * 9)) * 1 : 0));
+    ctx.scale(tipo === 'cangrejo' ? 1 : (o.dir < 0 ? -1 : 1), 1);
+    ctx.lineCap = 'round';
+    if (q) cuadrupedo(ctx, q, fase, !!o.comiendo, t);
+    else (PEQUENOS[tipo] || gallina)(ctx, fase, !!o.comiendo, t);
+    ctx.restore();
+  }
+
+  // Aves que vuelan sobre el mapa: colores (cuerpo, ala, cabeza), envergadura y aleteo.
+  const AVES = {
+    garza:     { cuerpo: '#ffffff', ala: '#f1f1ec', cabeza: '#ffffff', pico: '#f0c03a', env: 22, aleteo: 5 },
+    condor:    { cuerpo: '#1f1d1c', ala: '#2b2826', cabeza: '#d68b74', cuello: '#ffffff', pico: '#e8dcc0', env: 38, aleteo: 1.5 },
+    turpial:   { cuerpo: '#f39a1e', ala: '#1c1a18', cabeza: '#1c1a18', pico: '#9aa0a8', env: 12, aleteo: 12, franja: '#ffffff' },
+    guacamaya: { cuerpo: '#d8262b', ala: '#2a62c9', cabeza: '#d8262b', pico: '#efe8d8', env: 24, aleteo: 6, franja: '#f2c21a', colaLarga: true },
+    pelicano:  { cuerpo: '#8a8076', ala: '#6f665d', cabeza: '#f2ede2', pico: '#d9a14a', env: 30, aleteo: 3 },
+  };
+
+  /** Ave volando. (x,y) en el aire; dir = hacia dónde va (1 derecha, -1 izquierda). */
+  function ave(ctx, tipo, x, y, t, dir, sem) {
+    const a = AVES[tipo] || AVES.garza;
+    const ang = Math.sin(t * a.aleteo + sem * 6) * 0.9;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(dir < 0 ? -1 : 1, 1);
+    const e = a.env;
+    const alaY = -Math.sin(ang) * e * 0.55;
+    poli(ctx, [{ x: -3, y: 0 }, { x: 3, y: 0 }, { x: -e * 0.25, y: alaY - 2 }, { x: -e * 0.6, y: alaY }], a.ala);
+    if (a.franja) poli(ctx, [{ x: -1, y: 0 }, { x: 2, y: 0 }, { x: -e * 0.25, y: alaY * 0.6 - 1 }], a.franja);
+    if (a.colaLarga) poli(ctx, [{ x: -5, y: 0 }, { x: -e * 0.9, y: 3 }, { x: -e * 0.85, y: 5 }], a.cuerpo);
+    else poli(ctx, [{ x: -5, y: 0 }, { x: -e * 0.35, y: -2 }, { x: -e * 0.35, y: 3 }], a.cuerpo);
+    elipse(ctx, 0, 0, e * 0.28, e * 0.1 + 2, a.cuerpo);
+    if (a.cuello) elipse(ctx, e * 0.22, -1, 3, 2.6, a.cuello);
+    circulo(ctx, e * 0.3, -1.5, Math.max(2.2, e * 0.08), a.cabeza);
+    poli(ctx, [{ x: e * 0.3 + 2, y: -2.2 }, { x: e * 0.3 + (tipo === 'pelicano' ? 13 : 6), y: -0.5 }, { x: e * 0.3 + 2, y: 0 }], a.pico);
+    poli(ctx, [{ x: -3, y: 0 }, { x: 3, y: 0 }, { x: -e * 0.15, y: -alaY * 0.7 - 1 }, { x: -e * 0.45, y: -alaY * 0.7 }], a.ala);
+    ctx.restore();
+  }
+
   // ---------- Personajes ----------
 
   const PAL = {
@@ -567,8 +1065,9 @@
   }
 
   Conuco.Sprites = {
-    poli, rombo, elipse, rr,
-    isla, sueloTile, parcelaSuelo, parcelaResalte, tileResalte, esquinasParcela,
-    planta, arbol, edificio, avatar,
+    poli, rombo, elipse, rr, circulo,
+    fondoZona, isla, sueloTile, laguna, parcelaSuelo, parcelaBloqueadaBorde, terrenoVelo, letrero,
+    parcelaResalte, tileResalte, esquinasParcela,
+    planta, FORMAS_GRANDES, arbol, edificio, avatar, animal, ave,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

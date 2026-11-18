@@ -39,7 +39,7 @@
 
   /** Mantiene el mundo dentro de la pantalla; si cabe entero, lo centra. */
   function limitarCamara() {
-    const L = Iso.limites;
+    const L = Iso.limites();
     const mx = w / (2 * cam.zoom), my = h / (2 * cam.zoom);
     cam.x = L.maxX - L.minX <= 2 * mx ? (L.minX + L.maxX) / 2 : clamp(cam.x, L.minX + mx, L.maxX - mx);
     cam.y = L.maxY - L.minY <= 2 * my ? (L.minY + L.maxY) / 2 : clamp(cam.y, L.minY + my, L.maxY - my);
@@ -59,22 +59,91 @@
     limitarCamara();
   }
 
+  /** Zoom para ver el terreno inicial completo. */
+  function zoomInicial() {
+    const ancho = M.TERRENO * M.TILE_W + 120, alto = M.TERRENO * M.TILE_H + 200;
+    return clamp(Math.min(w / ancho, h / alto), 0.5, 1.1);
+  }
+
   function ajustarTamano() {
     const r = caja.getBoundingClientRect();
     if (!r.width || !r.height) return;
     w = r.width; h = r.height;
     dpr = Math.min(global.devicePixelRatio || 1, 2);
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-    const L = Iso.limites;
-    const encaja = Math.min(w / (L.maxX - L.minX), h / (L.maxY - L.minY));
-    zoomMin = encaja * 0.9;
-    if (primerAjuste) { // en pantallas chicas arranca más cerca y centrado en el jugador
-      cam.zoom = Math.max(encaja, w < 600 ? 0.62 : 0);
+    const L = Iso.limites();
+    zoomMin = Math.min(w / (L.maxX - L.minX), h / (L.maxY - L.minY)) * 0.95;
+    if (primerAjuste) {
+      cam.zoom = zoomInicial();
       primerAjuste = false;
       centrar();
     }
     cam.zoom = clamp(cam.zoom, zoomMin, ZOOM_MAX);
     limitarCamara();
+  }
+
+  // ---------- Animales ----------
+
+  const fauna = [];
+  const aves = [];
+  let zonaFauna = null;
+  const VEL_ANIMAL = { cangrejo: 1.3, gallina: 0.9, iguana: 0.8, chiguire: 0.6 };
+  const PASTAN = new Set(['vaca', 'caballo', 'oveja', 'chivo', 'burro', 'chiguire', 'cochino', 'gallina', 'corocora']);
+
+  /** Pone 2 o 3 animales de la zona en cada terreno y unas aves volando. */
+  function iniciarFauna() {
+    const zona = Iso.mapa().zona;
+    zonaFauna = zona.id;
+    fauna.length = 0; aves.length = 0;
+    const n = M.TERRENOS_LADO * M.TERRENOS_LADO;
+    for (let k = 0; k < n; k++) {
+      const libres = Iso.casillasFauna(k);
+      const cuantos = 2 + (Iso.hash(k, 1, 7) > 0.5 ? 1 : 0);
+      for (let j = 0; j < cuantos && libres.length; j++) {
+        const c = libres[Math.floor(Iso.hash(k, j, 3) * libres.length)];
+        const tipo = zona.animales[Math.floor(Iso.hash(k, j, 5) * zona.animales.length)];
+        fauna.push({ tipo, k, libres, x: c.tx + 0.5, y: c.ty + 0.5, dest: null, espera: Iso.hash(k, j, 9) * 4, dir: 1, caminando: false, comiendo: false, sem: Iso.hash(k, j, 11) });
+      }
+    }
+    const tiposAve = zona.aves || [];
+    for (let j = 0; j < 4 && tiposAve.length; j++) {
+      aves.push({
+        tipo: tiposAve[j % tiposAve.length],
+        cx: 6 + Iso.hash(j, 2, 1) * (M.ANCHO - 12), cy: 6 + Iso.hash(j, 3, 1) * (M.ALTO - 12),
+        r: 4 + Iso.hash(j, 4, 1) * 5, a: Iso.hash(j, 5, 1) * 6.28, vel: (0.12 + Iso.hash(j, 6, 1) * 0.1) * (j % 2 ? 1 : -1),
+        alto: 110 + Iso.hash(j, 7, 1) * 70, sem: Iso.hash(j, 8, 1), x: 0, y: 0, dir: 1,
+      });
+    }
+  }
+
+  function actualizarFauna(dt) {
+    if (zonaFauna !== Iso.mapa().zona.id) iniciarFauna();
+    for (const a of fauna) {
+      if (a.espera > 0) { a.espera -= dt; continue; }
+      if (!a.dest) {
+        const cerca = a.libres.filter((c) => Math.abs(c.tx + 0.5 - a.x) <= 3 && Math.abs(c.ty + 0.5 - a.y) <= 3);
+        const c = cerca[Math.floor(Math.random() * cerca.length)];
+        if (!c) { a.espera = 3; continue; }
+        a.dest = { x: c.tx + 0.5, y: c.ty + 0.5 };
+        a.comiendo = false;
+      }
+      const dx = a.dest.x - a.x, dy = a.dest.y - a.y, d = Math.hypot(dx, dy);
+      const paso = (VEL_ANIMAL[a.tipo] || 0.7) * dt;
+      a.caminando = true;
+      if (Math.abs(dx - dy) > 0.02) a.dir = dx - dy > 0 ? 1 : -1;
+      if (d <= paso) {
+        a.x = a.dest.x; a.y = a.dest.y; a.dest = null; a.caminando = false;
+        a.espera = 2 + Math.random() * 5;
+        a.comiendo = PASTAN.has(a.tipo) && Math.random() < 0.6;
+      } else { a.x += (dx / d) * paso; a.y += (dy / d) * paso; }
+    }
+    for (const b of aves) {
+      b.a += b.vel * dt;
+      const nx = b.cx + Math.cos(b.a) * b.r, ny = b.cy + Math.sin(b.a) * b.r;
+      const sx = (nx - ny) - (b.x - b.y);
+      if (Math.abs(sx) > 1e-4) b.dir = sx > 0 ? 1 : -1;
+      b.x = nx; b.y = ny;
+    }
   }
 
   // ---------- Partículas ----------
@@ -129,7 +198,7 @@
     } else {
       const sel = cb.obtenerSeleccion();
       if (!sel) {
-        cb.toast('No tienes semillas. Cómpralas en la pestaña Semillas.', 'error');
+        cb.toast('No tienes semillas. Cómpralas en la choza 🌱 Semillas.', 'error');
       } else {
         res = G.plantar(p.idx, sel, ahora);
         if (res.ok) particula('🌱', cx, cy);
@@ -175,7 +244,7 @@
 
   function alClick(sx, sy) {
     const estado = S.get();
-    if (!estado.jugador.etnia) return;
+    if (!estado.jugador.etnia || !estado.zona) return;
     const m = aMundo(sx, sy);
     const px = Math.floor(av.x), py = Math.floor(av.y);
 
@@ -188,11 +257,21 @@
 
     const t = Iso.aTile(m.x, m.y);
     const tx = Math.floor(t.tx), ty = Math.floor(t.ty);
+    if (!Iso.dentro(tx, ty)) return;
+    const terreno = Iso.terrenoDe(tx, ty);
+    if (!Iso.terrenoComprado(terreno)) return cb.comprarTerreno(terreno);
+
+    const idx = Iso.parcelaEnTile(tx, ty);
+    if (idx >= 0 && !estado.parcelas[idx].desbloqueada) {
+      const costo = G.costoParcela(estado);
+      if (estado.dinero < costo) {
+        return cb.toast(`Esta parcela cuesta Bs ${costo.toLocaleString('es-VE')}. Te faltan Bs ${(costo - estado.dinero).toLocaleString('es-VE')}.`, 'error');
+      }
+    }
     if (!Iso.esCaminable(tx, ty)) return;
     const ruta = Iso.buscarCamino(px, py, tx, ty);
     if (!ruta) return cb.toast('No se puede llegar hasta ahí.', 'error');
     marcador = { tx: tx + 0.5, ty: ty + 0.5, t0: Date.now() };
-    const idx = Iso.parcelaEnTile(tx, ty);
     ir(ruta, idx >= 0 ? { tipo: 'parcela', idx } : null);
   }
 
@@ -273,6 +352,7 @@
     const dt = Math.min(0.05, Math.max(0, (ms - ultimoMs) / 1000));
     ultimoMs = ms;
     actualizarJugador(dt);
+    actualizarFauna(dt);
     seguirConCamara(dt);
     const ahora = Date.now();
     for (let i = particulas.length - 1; i >= 0; i--) if (ahora - particulas[i].t0 > 1400) particulas.splice(i, 1);
@@ -282,7 +362,9 @@
       hover, marcador, particulas,
       seleccion: cb.obtenerSeleccion(),
       avatar: { x: av.x, y: av.y, dir: av.dir, frente: av.frente, caminando: av.caminando, salto: av.salto },
+      fauna, aves,
     });
+    if (cb.alCuadro) cb.alCuadro();
   }
 
   // ---------- API ----------
@@ -320,11 +402,20 @@
     global.requestAnimationFrame(cuadro);
   }
 
-  /** Vuelve a poner al jugador en la entrada (al reiniciar la partida). */
+  /** Vuelve a poner al jugador en la entrada y encuadra el terreno inicial (nueva partida o zona). */
   function reubicar() {
     av.x = M.SPAWN.x + 0.5; av.y = M.SPAWN.y + 0.5;
     av.ruta = []; av.pend = null; av.caminando = false;
-    centrar();
+    primerAjuste = true;
+    ajustarTamano();
+  }
+
+  /** Lleva la cámara (sin el jugador) a una casilla. */
+  function mirarA(tx, ty) {
+    const p = Iso.aPantalla(tx, ty);
+    cam.x = p.x; cam.y = p.y;
+    seguir = false;
+    limitarCamara();
   }
 
   /** Posición en pantalla (px dentro del lienzo) de una casilla; sirve para pruebas y tutoriales. */
@@ -333,5 +424,5 @@
     return { x: (p.x - cam.x) * cam.zoom + w / 2, y: (p.y - cam.y) * cam.zoom + h / 2 };
   }
 
-  Conuco.Mapa = { iniciar, reubicar, pantallaDeTile };
+  Conuco.Mapa = { iniciar, reubicar, pantallaDeTile, mirarA, particula, posicionJugador: () => ({ x: av.x, y: av.y }) };
 })(typeof window !== 'undefined' ? window : globalThis);

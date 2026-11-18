@@ -11,13 +11,36 @@
   const C = Conuco.CONFIG;
   const POR_ID = Conuco.CULTIVOS_POR_ID;
   const S = Conuco.State;
+  const M = Conuco.MAPA;
+  const PPT = C.PARCELAS_POR_TERRENO;
 
   const ok = (mensaje, extra) => ({ ok: true, mensaje, ...extra });
   const fallo = (mensaje) => ({ ok: false, mensaje });
   const bs = (n) => 'Bs ' + Math.floor(n).toLocaleString('es-VE');
 
-  // ---------- Personaje ----------
+  // ---------- Personaje y zona ----------
 
+  /** Configuración inicial: personaje, nombre y zona. La primera vez regala semillas de la zona. */
+  function configurarPartida(etnia, nombre, zona) {
+    if (!Conuco.ETNIAS.some((e) => e.id === etnia)) return fallo('Elige un personaje.');
+    if (!Conuco.ZONAS_POR_ID[zona]) return fallo('Elige una zona.');
+    const limpio = S.limpiarNombre(nombre);
+    S.mutar((e) => {
+      const primeraVez = !e.zona;
+      e.jugador.etnia = etnia;
+      e.jugador.nombre = limpio;
+      e.zona = zona;
+      if (primeraVez) {
+        Conuco.cultivosDeZona(zona).slice(0, C.SEMILLAS_INICIALES.length).forEach((c, k) => {
+          e.semillas[c.id] = (e.semillas[c.id] || 0) + C.SEMILLAS_INICIALES[k];
+        });
+      }
+    });
+    const z = Conuco.ZONAS_POR_ID[zona];
+    return ok(`¡Bienvenido${limpio ? ', ' + limpio : ''} a ${z.nombre}! ${z.emoji}`);
+  }
+
+  /** Cambia solo el personaje y el nombre (la zona se mantiene). */
   function elegirAvatar(etnia, nombre) {
     if (!Conuco.ETNIAS.some((e) => e.id === etnia)) return fallo('Elige un personaje.');
     const limpio = S.limpiarNombre(nombre);
@@ -25,7 +48,14 @@
       e.jugador.etnia = etnia;
       e.jugador.nombre = limpio;
     });
-    return ok(`¡Bienvenido${limpio ? ', ' + limpio : ''}! Toca una parcela para empezar a sembrar.`);
+    return ok(`¡Listo${limpio ? ', ' + limpio : ''}!`);
+  }
+
+  /** Rubros que se venden en la tienda de la zona del jugador. */
+  const cultivosDisponibles = (s = S.get()) => Conuco.cultivosDeZona(s.zona);
+
+  function terminarTutorial() {
+    S.mutar((e) => { e.tutorial.hecho = true; });
   }
 
   /** Guarda dónde quedó el jugador (sin redibujar los paneles). */
@@ -74,20 +104,22 @@
     };
   }
 
+  /** Precio de la próxima parcela suelta del terreno inicial. */
   function costoParcela(s = S.get()) {
-    const compradas = s.parcelas.filter((p) => p.desbloqueada).length - C.PARCELAS_INICIALES;
-    return Math.round(C.COSTO_PARCELA_BASE * Math.pow(C.COSTO_PARCELA_FACTOR, Math.max(0, compradas)));
+    const abiertas = s.parcelas.slice(0, PPT).filter((p) => p.desbloqueada).length;
+    return Math.round(C.COSTO_PARCELA_BASE * Math.pow(C.COSTO_PARCELA_FACTOR, Math.max(0, abiertas - C.PARCELAS_INICIALES)));
   }
 
   function contarListas(ahora = Date.now()) {
     return S.get().parcelas.filter((p) => estadoParcela(p, ahora).tipo === 'lista').length;
   }
 
-  const indiceValido = (i) => Number.isInteger(i) && i >= 0 && i < C.TOTAL_PARCELAS;
+  const indiceValido = (i) => Number.isInteger(i) && i >= 0 && i < Conuco.TOTAL_PARCELAS;
 
   function comprarParcela(idx) {
     const s = S.get();
     if (!indiceValido(idx) || s.parcelas[idx].desbloqueada) return fallo('Esa parcela ya es tuya.');
+    if (idx >= PPT) return fallo('Primero compra ese terreno.');
     const costo = costoParcela(s);
     if (s.dinero < costo) return fallo(`Te faltan ${bs(costo - s.dinero)} para esta parcela.`);
     S.mutar((e) => {
@@ -95,6 +127,45 @@
       e.parcelas[idx].desbloqueada = true;
     });
     return ok(`¡Nueva parcela desbloqueada por ${bs(costo)}!`);
+  }
+
+  // ---------- Terrenos ----------
+
+  function costoTerreno(s = S.get()) {
+    const comprados = s.terrenos.filter(Boolean).length - 1;
+    return Math.round(C.COSTO_TERRENO_BASE * Math.pow(C.COSTO_TERRENO_FACTOR, comprados));
+  }
+
+  /** Un terreno se puede comprar si toca (por un lado, no por la esquina) uno que ya es tuyo. */
+  function terrenoVecino(s, t) {
+    const L = M.TERRENOS_LADO, x = t % L, y = Math.floor(t / L);
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const nx = x + dx, ny = y + dy;
+      return nx >= 0 && ny >= 0 && nx < L && ny < L && s.terrenos[ny * L + nx];
+    });
+  }
+
+  /** ¿Se puede comprar? → { ok, costo, razon: 'tuyo'|'lejos'|'dinero'|null } */
+  function puedeComprarTerreno(t, s = S.get()) {
+    const costo = costoTerreno(s);
+    if (!Number.isInteger(t) || t < 0 || t >= s.terrenos.length || s.terrenos[t]) return { ok: false, costo, razon: 'tuyo' };
+    if (!terrenoVecino(s, t)) return { ok: false, costo, razon: 'lejos' };
+    if (s.dinero < costo) return { ok: false, costo, razon: 'dinero' };
+    return { ok: true, costo, razon: null };
+  }
+
+  function comprarTerreno(t) {
+    const s = S.get();
+    const p = puedeComprarTerreno(t, s);
+    if (p.razon === 'tuyo') return fallo('Ese terreno ya es tuyo.');
+    if (p.razon === 'lejos') return fallo('Primero compra un terreno vecino a este.');
+    if (p.razon === 'dinero') return fallo(`Te faltan ${bs(p.costo - s.dinero)} para este terreno.`);
+    S.mutar((e) => {
+      e.dinero -= p.costo;
+      e.terrenos[t] = true;
+      e.parcelas.forEach((q, i) => { if (i >= PPT && Conuco.terrenoDeParcela(i) === t) q.desbloqueada = true; });
+    });
+    return ok(`¡Terreno comprado por ${bs(p.costo)}! Trae ${PPT} parcelas nuevas.`, { terreno: t });
   }
 
   // ---------- Sembrar y cosechar ----------
@@ -114,6 +185,7 @@
       if (e.semillas[cultivoId] <= 0) delete e.semillas[cultivoId];
       e.parcelas[idx].cultivo = cultivoId;
       e.parcelas[idx].plantadoEn = ahora;
+      e.estadisticas.sembradas += 1;
     });
     return ok(`Sembraste ${cultivo.nombre} ${cultivo.emoji}`);
   }
@@ -179,6 +251,7 @@
     S.mutar((e) => {
       e.dinero -= total;
       e.semillas[cultivoId] = (e.semillas[cultivoId] || 0) + cantidad;
+      e.estadisticas.semillasCompradas += cantidad;
     });
     return ok(`Compraste ${cantidad} semilla(s) de ${cultivo.nombre} por ${bs(total)}`);
   }
@@ -231,7 +304,8 @@
   }
 
   Conuco.Game = {
-    elegirAvatar, guardarPosicion,
+    configurarPartida, elegirAvatar, guardarPosicion, cultivosDisponibles, terminarTutorial,
+    costoTerreno, puedeComprarTerreno, comprarTerreno,
     nivelDeXp, xpDeNivel, progresoNivel,
     estadoParcela, costoParcela, contarListas,
     comprarParcela, plantar, cosechar, cosecharTodo,

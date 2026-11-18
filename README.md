@@ -1,6 +1,6 @@
 # 🌾 Mi Conuco
 
-Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Elige tu personaje, camina por un conuco en vista isométrica, siembra maíz, yuca, caraota, plátano, cacao y café, vende en el mercado local, gana bolívares y XP, sube de nivel y desbloquea más parcelas.
+Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Elige tu personaje y tu región (Llanos, Andes, Occidente, Oriente o Costa), camina por un conuco en vista isométrica, siembra los rubros de tu zona, vende en el mercado local, sube de nivel y compra terrenos para crecer.
 
 🎮 **Jugar:** https://mi-conuco.netlify.app
 
@@ -14,49 +14,52 @@ Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Elige tu 
 
 ## Cómo se juega
 
-1. Al empezar eliges tu personaje (**Indígena** o **Español colonizador**) y, si quieres, un nombre.
-2. Elige una semilla en **Semilla a sembrar** y **toca una parcela**: tu personaje camina hasta ella (esquivando árboles y casas) y al llegar:
-   - parcela vacía → siembra la semilla elegida,
-   - parcela brillando (**burbuja con el fruto**) → cosecha,
-   - parcela bloqueada 🔒 → la compra (el precio sube con cada una),
-   - parcela creciendo → te dice cuánto falta (también ves el contador sobre la parcela).
-3. Toca la **choza 🌱** para abrir la tienda de semillas o el **puesto 🧺** para vender la cosecha. También puedes usar los paneles de la derecha.
-4. Cosechar y vender da XP. Al subir de nivel se desbloquean rubros más rentables (cacao, café).
-5. **Mover la cámara:** arrastra el mapa. **Zoom:** rueda del ratón, pellizco con dos dedos o los botones ＋ － ◎ (◎ centra en tu personaje).
+1. **Configuración guiada:** eliges personaje (**Indígena** o **Español colonizador**), un nombre opcional y tu **zona de Venezuela**. Cada zona tiene su paisaje, sus animales y sus 6 rubros:
 
-Las parcelas se desbloquean del centro hacia afuera.
+   | Zona | Rubros (del nivel 1 al 5) | Animales |
+   |---|---|---|
+   | 🌾 Los Llanos | maíz, arroz, caraota, patilla, girasol, caña | vacas, caballos, chigüires, corocoras, garzas |
+   | ⛰️ Los Andes | zanahoria, papa, ajo, fresa, durazno, café | vacas, ovejas, gallinas, cóndores |
+   | 🌵 Occidente | tomate, pimentón, cebolla, plátano, melón, uva | chivos, burros, iguanas, turpiales |
+   | 🦜 Oriente | ají dulce, yuca, caraota, piña, cacao, mango | cochinos, gallinas, iguanas, guacamayas |
+   | 🏖️ La Costa | maíz, yuca, caraota, coco, cacao, café | cangrejos, gallinas, burros, pelícanos |
+
+2. **Guía de primeros pasos:** burbujas te indican qué hacer (sembrar → cosechar → vender → comprar semillas) y desaparecen cuando lo haces. Se puede volver a ver desde el menú ☰.
+3. Elige la semilla en la barra de abajo y **toca una parcela**: tu personaje camina hasta ella y al llegar siembra, cosecha o (si tienes el dinero) la compra.
+4. Toca la **choza 🌱** o el botón *Semillas* para comprar semillas, y el **puesto 🧺** o *Vender* para vender la cosecha.
+5. **Terrenos:** el mapa tiene 3x3 terrenos. Empiezas en el del centro; los demás aparecen bloqueados con un letrero *SE VENDE*. Tócalo para comprarlo (debe tocar por un lado a un terreno tuyo y necesitas el dinero). Cada terreno trae 9 parcelas listas; el precio se duplica con cada compra (600, 1.200, 2.400…).
+6. **Subir de nivel** lanza confeti y estrellas y te dice qué rubro desbloqueaste.
+7. **Cámara:** arrastra el mapa. **Zoom:** rueda del ratón, pellizco con dos dedos o los botones ＋ － ◎.
 
 ## Estructura
 
 ```
-conuco-game/
-├── index.html          Página única (mapa, paneles y pantalla de selección de personaje)
-├── css/styles.css      Estilos mobile-first (sin dependencias)
+├── index.html          Página única: mapa a pantalla completa + interfaz flotante
+├── css/styles.css      Estilos (sin dependencias)
 ├── js/
-│   ├── config.js       Rubros, precios, tiempos, tamaño del mapa y personajes  ← aquí se balancea el juego
-│   ├── state.js        Estado del jugador + guardado/carga en localStorage (con migración de partidas viejas)
-│   ├── game.js         Reglas: sembrar, cosechar, vender, comprar, niveles, elegir personaje
-│   ├── iso.js          Geometría isométrica, disposición del mapa y búsqueda de caminos (A*)  — sin dibujo
-│   ├── sprites.js      Todo el arte, dibujado con Canvas 2D (suelo, cultivos, árboles, edificios, personajes)
-│   ├── escena.js       Compone un cuadro completo (orden de profundidad, etiquetas, partículas)
-│   ├── mapa.js         Cámara, arrastre/zoom, toques, el personaje caminando y sus acciones
-│   ├── ui.js           Paneles de la página, selección de personaje y avisos
+│   ├── config.js       Rubros, zonas, precios, tiempos y tamaño del mapa  ← aquí se balancea el juego
+│   ├── state.js        Estado del jugador + guardado en localStorage (migra partidas viejas)
+│   ├── game.js         Reglas: sembrar, cosechar, vender, comprar parcelas/terrenos, niveles, zona
+│   ├── iso.js          Geometría isométrica, disposición del mapa por zona y caminos (A*) — sin dibujo
+│   ├── sprites.js      Todo el arte en Canvas 2D: suelo, cultivos, árboles, edificios, animales, personajes
+│   ├── escena.js       Compone cada cuadro (orden de profundidad, terrenos bloqueados, etiquetas)
+│   ├── mapa.js         Cámara, toques, el personaje caminando, los animales y las aves
+│   ├── fiesta.js       Confeti, estrellas y tarjeta de "¡Subiste de nivel!"
+│   ├── guia.js         Burbujas de la guía de primeros pasos
+│   ├── ui.js           Barra de arriba, botones, panel de tienda/mercado, configuración guiada
 │   └── main.js         Arranque, bucle de 1 s y autoguardado
-├── tests/
-│   ├── logica.test.js  Reglas del juego y guardado
-│   └── mapa.test.js    Proyección isométrica, pathfinding, personaje y partidas antiguas
-└── .nojekyll
+└── tests/
+    ├── logica.test.js  Reglas, zonas, terrenos y guardado
+    └── mapa.test.js    Proyección, parcelas, caminos en las 5 zonas y partidas antiguas
 ```
 
-Orden de carga: `config → state → game → iso → sprites → escena → mapa → ui → main` (cada uno usa a los anteriores mediante el espacio de nombres `window.Conuco`).
+## Cómo funciona el mapa
 
-## Cómo funciona la vista isométrica
-
-- El mapa es una cuadrícula de 17x17 casillas. Cada casilla es un rombo de 64x32 px (relación 2:1).
-- Proyección: `pantallaX = (tx - ty) * 32`, `pantallaY = (tx + ty) * 16`. Está en `iso.js`.
-- Para que lo de adelante tape lo de atrás, todos los objetos (árboles, edificios, plantas y el jugador) se ordenan por `tx + ty` antes de dibujarse.
-- Para cambiar el mapa edita `EDIFICIOS` y `ARBOLES` en `iso.js`. Las casillas ocupadas se bloquean solas para el pathfinding.
-- Las parcelas se numeran según el orden de desbloqueo (`ORDEN_PARCELAS` en `config.js`), no por su posición.
+- 36x36 casillas = 3x3 terrenos de 12x12. Cada casilla es un rombo de 64x32 px.
+- Proyección: `pantallaX = (tx - ty) * 32`, `pantallaY = (tx + ty) * 16` (en `iso.js`).
+- Cada terreno tiene en el centro un campo de 3x3 parcelas pegadas (de 2x2 casillas), rodeado de un camino que se une con los terrenos vecinos.
+- Los árboles y lagunas se generan según la zona de forma fija (siempre igual para la misma zona). Se bloquean solos para el pathfinding.
+- Los objetos se ordenan por `tx + ty` antes de dibujarse para que lo de adelante tape lo de atrás. Solo se dibuja lo que está en pantalla.
 
 ## Cómo funciona el tiempo (incluso con el navegador cerrado)
 
@@ -75,14 +78,11 @@ Las rutas son relativas, así que funciona en esa subcarpeta sin cambios.
 
 ## Añadir un rubro nuevo
 
-Agrega un objeto en `CULTIVOS` dentro de `js/config.js`:
+En `js/config.js` agrega una línea en `RUBROS` (id, nombre, emoji, escalón 1–6, forma de la planta, color del fruto) y pon su id en la lista `cultivos` de la zona que quieras. El escalón define precio, tiempo, ganancia y nivel; la tienda, el selector y el mercado lo toman solos.
 
 ```js
-{ id: 'aji', nombre: 'Ají dulce', emoji: '🌶️', costoSemilla: 15, tiempoMs: 120 * 1000,
-  rendimiento: 4, precioVenta: 8, xp: 12, nivelReq: 2 }
+['ocumo', 'Ocumo', '🥔', 2, 'raiz', '#9b7a5a'],
 ```
-
-La tienda, el selector, el inventario y el mercado lo toman automáticamente.
 
 ## Limitaciones conocidas
 
@@ -91,4 +91,4 @@ La tienda, el selector, el inventario y el mercado lo toman automáticamente.
 
 ## Ideas para la siguiente fase
 
-Diferencias reales entre personajes (herramientas, rubros o precios propios), precios de mercado que varían por día, eventos (sequía, lluvia), riego, animales (gallinas, vacas), pedidos de clientes, ciclo día/noche, exportar/importar partida, PWA instalable y sonidos.
+Diferencias reales entre personajes, animales que producen (leche, huevos), precios de mercado que varían por día, eventos (sequía, lluvia), pedidos de clientes, ciclo día/noche, exportar/importar partida, PWA instalable y sonidos.
