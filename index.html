@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#2f6b1f">
-  <meta name="description" content="Juego de cosecha ambientado en el conuco venezolano: siembra yuca, maíz, cacao y café.">
+  <meta name="description" content="Juego de cosecha ambientado en el conuco venezolano: siembra yuca, maíz, cacao y café en un mapa isométrico.">
   <title>Mi Conuco 🌾 — Juego de cosecha venezolano</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -28,18 +28,25 @@
   </header>
 
   <main class="layout">
-    <!-- ===== Conuco ===== -->
+    <!-- ===== Conuco (mapa isométrico) ===== -->
     <section class="card" aria-labelledby="t-conuco">
       <div class="card-head">
         <h2 id="t-conuco">Tu conuco</h2>
         <button id="btn-cosechar-todo" class="btn btn-primary" type="button">🧺 Cosechar todo</button>
       </div>
 
-      <div id="grid" class="grid" aria-label="Parcelas del conuco"></div>
+      <div class="mapa-caja">
+        <canvas id="mapa" aria-label="Mapa del conuco: toca un lugar para caminar hasta él"></canvas>
+        <div class="zoom-botones">
+          <button id="zoom-mas" class="btn-redondo" type="button" aria-label="Acercar">＋</button>
+          <button id="zoom-menos" class="btn-redondo" type="button" aria-label="Alejar">－</button>
+          <button id="zoom-centrar" class="btn-redondo" type="button" aria-label="Centrar en mi personaje">◎</button>
+        </div>
+      </div>
 
       <h3 class="subtitulo">Semilla a sembrar</h3>
       <div id="seedbar" class="seedbar"></div>
-      <p class="hint">Elige una semilla y toca una parcela vacía para sembrar. Cuando brille, tócala para cosechar. Los cultivos siguen creciendo aunque cierres el navegador.</p>
+      <p class="hint">Toca una parcela y tu personaje caminará hasta ella: si está vacía siembra, si brilla cosecha, y si está bloqueada la compra. Arrastra para mover el mapa y usa la rueda o los botones para acercar. La 🌱 choza es la tienda de semillas y el puesto 🧺 es el mercado.</p>
     </section>
 
     <!-- ===== Mercado ===== -->
@@ -56,16 +63,48 @@
 
   <footer class="pie">
     <span id="aviso-almacenamiento" class="aviso" hidden>⚠️ Tu navegador no permite guardar la partida (modo privado).</span>
+    <button id="btn-cambiar-avatar" class="btn-link" type="button">Cambiar personaje</button>
     <button id="btn-reiniciar" class="btn-link" type="button">Reiniciar partida</button>
   </footer>
 
+  <!-- ===== Selección de personaje ===== -->
+  <div id="modal-avatar" class="modal" role="dialog" aria-modal="true" aria-labelledby="t-avatar" hidden>
+    <div class="modal-caja">
+      <h2 id="t-avatar">¿Quién llega al conuco?</h2>
+      <p class="modal-sub">Elige tu personaje. Te acompañará por el mapa mientras siembras y cosechas.</p>
+      <div class="opciones-avatar">
+        <button type="button" class="opcion-avatar" data-etnia="indigena" aria-pressed="false">
+          <canvas width="280" height="340" aria-hidden="true"></canvas>
+          <b>Indígena</b>
+          <small></small>
+        </button>
+        <button type="button" class="opcion-avatar" data-etnia="espanol" aria-pressed="false">
+          <canvas width="280" height="340" aria-hidden="true"></canvas>
+          <b>Español colonizador</b>
+          <small></small>
+        </button>
+      </div>
+      <label class="campo-nombre">Tu nombre <span>(opcional)</span>
+        <input id="nombre-jugador" type="text" maxlength="16" placeholder="Conuquero" autocomplete="off">
+      </label>
+      <div class="modal-acciones">
+        <button id="btn-cancelar-avatar" class="btn" type="button" hidden>Cancelar</button>
+        <button id="btn-comenzar" class="btn btn-primary" type="button" disabled>Comenzar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <!-- Orden importa: cada archivo usa el anterior. Son scripts clásicos (sin módulos),
+  <!-- Orden importa: cada archivo usa a los anteriores. Son scripts clásicos (sin módulos),
        así que el juego también funciona abriendo index.html con doble clic. -->
   <script src="js/config.js"></script>
   <script src="js/state.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/iso.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/escena.js"></script>
+  <script src="js/mapa.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>

@@ -13,10 +13,9 @@
     // 2) Dibujar la interfaz
     UI.iniciar();
 
-    // 3) Mensaje de bienvenida / "mientras no estabas"
-    if (nuevo) {
-      UI.toast('¡Bienvenido a tu conuco! Elige una semilla y siembra 🌽', 'ok');
-    } else {
+    // 3) "Mientras no estabas": avisa de cultivos que terminaron de crecer.
+    //    (A un jugador nuevo, la pantalla de selección de personaje le da la bienvenida.)
+    if (!nuevo) {
       const ausenteMs = Date.now() - (ultimaVezAnterior || Date.now());
       const listas = G.contarListas();
       if (ausenteMs > 30 * 1000 && listas > 0) {

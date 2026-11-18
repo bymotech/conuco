@@ -16,6 +16,23 @@
   const fallo = (mensaje) => ({ ok: false, mensaje });
   const bs = (n) => 'Bs ' + Math.floor(n).toLocaleString('es-VE');
 
+  // ---------- Personaje ----------
+
+  function elegirAvatar(etnia, nombre) {
+    if (!Conuco.ETNIAS.some((e) => e.id === etnia)) return fallo('Elige un personaje.');
+    const limpio = S.limpiarNombre(nombre);
+    S.mutar((e) => {
+      e.jugador.etnia = etnia;
+      e.jugador.nombre = limpio;
+    });
+    return ok(`¡Bienvenido${limpio ? ', ' + limpio : ''}! Toca una parcela para empezar a sembrar.`);
+  }
+
+  /** Guarda dónde quedó el jugador (sin redibujar los paneles). */
+  function guardarPosicion(tx, ty) {
+    S.mutar((e) => { e.jugador.tx = tx; e.jugador.ty = ty; }, { silencioso: true });
+  }
+
   // ---------- Nivel y experiencia ----------
 
   const nivelDeXp = (xp) => Math.floor(Math.sqrt(Math.max(0, xp) / C.XP_BASE)) + 1;
@@ -214,6 +231,7 @@
   }
 
   Conuco.Game = {
+    elegirAvatar, guardarPosicion,
     nivelDeXp, xpDeNivel, progresoNivel,
     estadoParcela, costoParcela, contarListas,
     comprarParcela, plantar, cosechar, cosecharTodo,

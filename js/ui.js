@@ -1,19 +1,17 @@
 /**
- * ui.js — Interfaz: dibuja el estado y traduce toques/clics en acciones del juego.
+ * ui.js — Paneles de la página (cabecera, semillas, mercado), pantalla de selección de
+ * personaje y avisos. El mapa isométrico vive en mapa.js / escena.js.
  *
- * - La cuadrícula se crea UNA vez y se actualiza en sitio cada segundo (así los toques
- *   en móvil nunca se pierden por reconstruir el DOM a mitad de un toque).
  * - Las listas (semillas, cosecha) se redibujan solo cuando cambia el estado.
- * - Todo el texto que entra en innerHTML viene de config.js (nunca del usuario).
+ * - Todo el texto que entra en innerHTML viene de config.js. Lo que escribe el jugador
+ *   (su nombre) solo se inserta con textContent / value, nunca como HTML.
  */
 (function (global) {
   'use strict';
   const Conuco = global.Conuco;
-  const { CULTIVOS, CULTIVOS_POR_ID: POR_ID, CONFIG: C } = Conuco;
+  const { CULTIVOS, CULTIVOS_POR_ID: POR_ID, ETNIAS } = Conuco;
   const S = Conuco.State;
   const G = Conuco.Game;
-
-  const ETAPAS = ['🌱', '🌿', '🪴']; // brote -> planta -> planta crecida
 
   // ---------- Formato ----------
   const fmtBs = (n) => 'Bs ' + Math.floor(n).toLocaleString('es-VE');
@@ -25,20 +23,14 @@
     return m + ' min' + (t % 60 ? ' ' + (t % 60) + ' s' : '');
   }
 
-  function fmtReloj(ms) {
-    const t = Math.ceil(ms / 1000);
-    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
-  }
-
   // ---------- Estado de la interfaz (no se guarda) ----------
-  let seleccion = null;       // id de la semilla elegida
+  let seleccion = null;       // id de la semilla elegida para sembrar
   let tabActiva = 'semillas';
   let el = {};                // referencias al DOM
-  let parcelaEls = [];
+  let etniaElegida = null;    // en la pantalla de selección de personaje
 
   const $ = (id) => document.getElementById(id);
   const setTexto = (nodo, t) => { if (nodo.textContent !== t) nodo.textContent = t; };
-  const setClase = (nodo, c) => { if (nodo.className !== c) nodo.className = c; };
 
   // ---------- Avisos (toasts) ----------
   function toast(mensaje, tipo = 'info') {
@@ -64,55 +56,6 @@
     setTexto(el.nivel, String(p.nivel));
     el.xpBarra.style.width = Math.round(p.pct * 100) + '%';
     setTexto(el.xpTexto, `${p.actual} / ${p.necesario} XP`);
-  }
-
-  // ---------- Cuadrícula ----------
-  function crearGrid() {
-    el.grid.innerHTML = '';
-    parcelaEls = [];
-    for (let i = 0; i < C.TOTAL_PARCELAS; i++) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'parcela';
-      b.dataset.idx = i;
-      b.innerHTML = '<span class="p-emoji"></span><span class="p-label"></span><span class="p-bar"><i></i></span>';
-      el.grid.appendChild(b);
-      parcelaEls.push({
-        btn: b,
-        emoji: b.children[0],
-        label: b.children[1],
-        barra: b.children[2].firstChild,
-      });
-    }
-  }
-
-  /** Se llama cada segundo y tras cada cambio. Solo toca el DOM si algo cambió. */
-  function actualizarGrid() {
-    const s = S.get();
-    const ahora = Date.now();
-    s.parcelas.forEach((p, i) => {
-      const n = parcelaEls[i];
-      const info = G.estadoParcela(p, ahora);
-      let emoji = '', label = '', pct = 0, aria = '';
-
-      if (info.tipo === 'bloqueada') {
-        emoji = '🔒'; label = fmtBs(G.costoParcela(s)); aria = `Parcela bloqueada, cuesta ${label}`;
-      } else if (info.tipo === 'vacia') {
-        label = 'Sembrar'; aria = 'Parcela vacía';
-      } else if (info.tipo === 'lista') {
-        emoji = info.cultivo.emoji; label = '¡Lista!'; pct = 100; aria = `${info.cultivo.nombre} lista para cosechar`;
-      } else {
-        emoji = ETAPAS[Math.min(2, Math.floor(info.pct * 3))];
-        label = fmtReloj(info.restanteMs); pct = info.pct * 100;
-        aria = `${info.cultivo.nombre} creciendo, faltan ${fmtDuracion(info.restanteMs)}`;
-      }
-      setClase(n.btn, 'parcela ' + info.tipo);
-      setTexto(n.emoji, emoji);
-      setTexto(n.label, label);
-      n.barra.style.width = pct.toFixed(1) + '%';
-      if (n.btn.getAttribute('aria-label') !== aria) n.btn.setAttribute('aria-label', aria);
-    });
-    el.btnCosecharTodo.disabled = G.contarListas(ahora) === 0;
   }
 
   // ---------- Selector de semillas ----------
@@ -192,34 +135,65 @@
     el.tabCosecha.setAttribute('aria-selected', String(!sem));
   }
 
-  // ---------- Render general ----------
+  /** Abre una pestaña del mercado (la usa el mapa al llegar a la choza o al puesto). */
+  function abrirPanel(nombre) {
+    cambiarTab(nombre);
+    toast(nombre === 'semillas' ? '🌱 Tienda de semillas' : '🧺 Mercado local: vende tu cosecha');
+    const destino = nombre === 'semillas' ? el.panelSemillas : el.panelCosecha;
+    if (destino.scrollIntoView) destino.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function actualizarBotones() {
+    el.btnCosecharTodo.disabled = G.contarListas() === 0;
+    el.aviso.hidden = S.esPersistente();
+  }
+
+  // ---------- Selección de personaje ----------
+  function marcarOpcion() {
+    el.opciones.forEach((b) => {
+      const sel = b.dataset.etnia === etniaElegida;
+      b.classList.toggle('sel', sel);
+      b.setAttribute('aria-pressed', String(sel));
+    });
+    el.btnComenzar.disabled = !etniaElegida;
+  }
+
+  /** Dibuja los muñecos de la pantalla de selección (el elegido camina en el lugar). */
+  function animarPrevias(ms) {
+    if (el.modal.hidden) return;
+    el.opciones.forEach((b) => {
+      const c = b.querySelector('canvas');
+      const ctx = c.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+      const elegido = b.dataset.etnia === etniaElegida;
+      Conuco.Sprites.elipse(ctx, 140, 300, 86, 26, 'rgba(0,0,0,0.1)');
+      Conuco.Sprites.avatar(ctx, b.dataset.etnia, 140, 296, { escala: 4.6, frente: true, dir: 1, caminando: elegido, t: ms / 1000 });
+    });
+    global.requestAnimationFrame(animarPrevias);
+  }
+
+  function abrirModalAvatar() {
+    const j = S.get().jugador;
+    etniaElegida = j.etnia;
+    el.nombreJugador.value = j.nombre;
+    el.btnCancelarAvatar.hidden = !j.etnia; // la primera vez es obligatorio elegir
+    marcarOpcion();
+    const yaEstaba = !el.modal.hidden;
+    el.modal.hidden = false;
+    if (!yaEstaba) global.requestAnimationFrame(animarPrevias);
+  }
+
   function renderTodo() {
     renderCabecera();
     renderSeedbar();
     renderSemillas();
     renderCosecha();
-    actualizarGrid();
-    el.aviso.hidden = S.esPersistente();
+    actualizarBotones();
+    if (!S.get().jugador.etnia && el.modal.hidden) abrirModalAvatar();
   }
 
   // ---------- Eventos ----------
-  function alTocarParcela(ev) {
-    const b = ev.target.closest('.parcela');
-    if (!b) return;
-    const idx = Number(b.dataset.idx);
-    const ahora = Date.now();
-    const info = G.estadoParcela(S.get().parcelas[idx], ahora);
-
-    if (info.tipo === 'bloqueada') return mostrar(G.comprarParcela(idx));
-    if (info.tipo === 'lista') return mostrar(G.cosechar(idx, ahora));
-    if (info.tipo === 'creciendo') {
-      return toast(`${info.cultivo.nombre} ${info.cultivo.emoji}: faltan ${fmtDuracion(info.restanteMs)}`);
-    }
-    // Parcela vacía -> sembrar la semilla elegida
-    if (!seleccion) return toast('No tienes semillas. Cómpralas en la pestaña Semillas.', 'error');
-    mostrar(G.plantar(idx, seleccion, ahora));
-  }
-
   function alTocarSemilla(ev) {
     const b = ev.target.closest('.chip');
     if (!b) return;
@@ -241,14 +215,34 @@
   function iniciar() {
     el = {
       dinero: $('dinero'), nivel: $('nivel'), xpBarra: $('xp-barra'), xpTexto: $('xp-texto'),
-      grid: $('grid'), seedbar: $('seedbar'), btnCosecharTodo: $('btn-cosechar-todo'),
+      seedbar: $('seedbar'), btnCosecharTodo: $('btn-cosechar-todo'),
       tabSemillas: $('tab-semillas'), tabCosecha: $('tab-cosecha'),
       panelSemillas: $('panel-semillas'), panelCosecha: $('panel-cosecha'),
-      toasts: $('toasts'), aviso: $('aviso-almacenamiento'), btnReiniciar: $('btn-reiniciar'),
+      toasts: $('toasts'), aviso: $('aviso-almacenamiento'),
+      btnReiniciar: $('btn-reiniciar'), btnCambiarAvatar: $('btn-cambiar-avatar'),
+      modal: $('modal-avatar'), nombreJugador: $('nombre-jugador'),
+      btnComenzar: $('btn-comenzar'), btnCancelarAvatar: $('btn-cancelar-avatar'),
+      opciones: Array.from(document.querySelectorAll('.opcion-avatar')),
     };
 
-    crearGrid();
-    el.grid.addEventListener('click', alTocarParcela);
+    // Textos de los personajes (vienen de config.js)
+    el.opciones.forEach((b) => {
+      const e = ETNIAS.find((x) => x.id === b.dataset.etnia);
+      b.querySelector('b').textContent = e.nombre;
+      b.querySelector('small').textContent = e.descripcion;
+      b.addEventListener('click', () => { etniaElegida = e.id; marcarOpcion(); });
+    });
+    el.btnComenzar.addEventListener('click', () => {
+      const res = G.elegirAvatar(etniaElegida, el.nombreJugador.value);
+      if (res.ok) { el.modal.hidden = true; mostrar(res); }
+      else mostrar(res);
+    });
+    el.btnCancelarAvatar.addEventListener('click', () => { el.modal.hidden = true; });
+    el.btnCambiarAvatar.addEventListener('click', abrirModalAvatar);
+
+    // El mapa necesita saber qué semilla hay elegida y poder avisar al jugador
+    Conuco.Mapa.iniciar({ obtenerSeleccion: () => seleccion, mostrar, toast, abrirPanel });
+
     el.seedbar.addEventListener('click', alTocarSemilla);
     el.panelSemillas.addEventListener('click', alTocarMercado);
     el.panelCosecha.addEventListener('click', alTocarMercado);
@@ -259,18 +253,19 @@
       if (global.confirm('¿Seguro que quieres borrar tu conuco y empezar de cero?')) {
         seleccion = null;
         S.reiniciar();
+        Conuco.Mapa.reubicar();
         toast('Partida reiniciada. ¡A sembrar!', 'ok');
       }
     });
 
-    S.suscribir(renderTodo); // cualquier cambio de estado redibuja
+    S.suscribir(renderTodo); // cualquier cambio de estado redibuja los paneles
     cambiarTab(tabActiva);
     renderTodo();
   }
 
-  /** Llamado cada segundo desde main.js. */
+  /** Llamado cada segundo desde main.js: lo único que cambia solo con el tiempo es "Cosechar todo". */
   function tick() {
-    actualizarGrid();
+    actualizarBotones();
   }
 
   Conuco.UI = { iniciar, tick, toast };

@@ -1,6 +1,6 @@
 # 🌾 Mi Conuco
 
-Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Siembra maíz, yuca, caraota, plátano, cacao y café; vende en el mercado local, gana bolívares y XP, sube de nivel y desbloquea más parcelas.
+Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Elige tu personaje, camina por un conuco en vista isométrica, siembra maíz, yuca, caraota, plátano, cacao y café, vende en el mercado local, gana bolívares y XP, sube de nivel y desbloquea más parcelas.
 
 🎮 **Jugar:** https://mi-conuco.netlify.app
 
@@ -10,34 +10,53 @@ Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Siembra m
 
 - **Más simple:** abre `index.html` con doble clic. Usa scripts clásicos (no módulos ES), por eso funciona sin servidor.
 - **Con servidor local** (opcional): `python3 -m http.server 8000` y entra a `http://localhost:8000`.
-- **Pruebas de la lógica:** `node tests/logica.test.js`
+- **Pruebas:** `node tests/logica.test.js` y `node tests/mapa.test.js`
 
 ## Cómo se juega
 
-1. Elige una semilla en **Semilla a sembrar**.
-2. Toca una parcela vacía para sembrar. Muestra un contador mientras crece.
-3. Cuando la parcela brille (**¡Lista!**), tócala para cosechar, o usa **Cosechar todo**.
-4. En **Mercado local → Cosecha** vendes lo cosechado. En **Semillas** compras más.
-5. Cosechar y vender da XP. Al subir de nivel se desbloquean rubros más rentables (cacao, café).
-6. Toca una parcela 🔒 para comprarla (el precio sube con cada parcela).
+1. Al empezar eliges tu personaje (**Indígena** o **Español colonizador**) y, si quieres, un nombre.
+2. Elige una semilla en **Semilla a sembrar** y **toca una parcela**: tu personaje camina hasta ella (esquivando árboles y casas) y al llegar:
+   - parcela vacía → siembra la semilla elegida,
+   - parcela brillando (**burbuja con el fruto**) → cosecha,
+   - parcela bloqueada 🔒 → la compra (el precio sube con cada una),
+   - parcela creciendo → te dice cuánto falta (también ves el contador sobre la parcela).
+3. Toca la **choza 🌱** para abrir la tienda de semillas o el **puesto 🧺** para vender la cosecha. También puedes usar los paneles de la derecha.
+4. Cosechar y vender da XP. Al subir de nivel se desbloquean rubros más rentables (cacao, café).
+5. **Mover la cámara:** arrastra el mapa. **Zoom:** rueda del ratón, pellizco con dos dedos o los botones ＋ － ◎ (◎ centra en tu personaje).
+
+Las parcelas se desbloquean del centro hacia afuera.
 
 ## Estructura
 
 ```
 conuco-game/
-├── index.html          Página única (estructura de la UI)
+├── index.html          Página única (mapa, paneles y pantalla de selección de personaje)
 ├── css/styles.css      Estilos mobile-first (sin dependencias)
 ├── js/
-│   ├── config.js       Rubros, precios, tiempos y constantes  ← aquí se balancea el juego
-│   ├── state.js        Estado del jugador + guardado/carga en localStorage
-│   ├── game.js         Reglas: sembrar, cosechar, vender, comprar, niveles
-│   ├── ui.js           Dibuja el estado y maneja toques/clics
+│   ├── config.js       Rubros, precios, tiempos, tamaño del mapa y personajes  ← aquí se balancea el juego
+│   ├── state.js        Estado del jugador + guardado/carga en localStorage (con migración de partidas viejas)
+│   ├── game.js         Reglas: sembrar, cosechar, vender, comprar, niveles, elegir personaje
+│   ├── iso.js          Geometría isométrica, disposición del mapa y búsqueda de caminos (A*)  — sin dibujo
+│   ├── sprites.js      Todo el arte, dibujado con Canvas 2D (suelo, cultivos, árboles, edificios, personajes)
+│   ├── escena.js       Compone un cuadro completo (orden de profundidad, etiquetas, partículas)
+│   ├── mapa.js         Cámara, arrastre/zoom, toques, el personaje caminando y sus acciones
+│   ├── ui.js           Paneles de la página, selección de personaje y avisos
 │   └── main.js         Arranque, bucle de 1 s y autoguardado
-├── tests/logica.test.js
-└── .nojekyll           Evita que GitHub Pages procese el sitio con Jekyll
+├── tests/
+│   ├── logica.test.js  Reglas del juego y guardado
+│   └── mapa.test.js    Proyección isométrica, pathfinding, personaje y partidas antiguas
+└── .nojekyll
 ```
 
-Orden de carga: `config → state → game → ui → main` (cada uno usa al anterior mediante el espacio de nombres `window.Conuco`).
+Orden de carga: `config → state → game → iso → sprites → escena → mapa → ui → main` (cada uno usa a los anteriores mediante el espacio de nombres `window.Conuco`).
+
+## Cómo funciona la vista isométrica
+
+- El mapa es una cuadrícula de 17x17 casillas. Cada casilla es un rombo de 64x32 px (relación 2:1).
+- Proyección: `pantallaX = (tx - ty) * 32`, `pantallaY = (tx + ty) * 16`. Está en `iso.js`.
+- Para que lo de adelante tape lo de atrás, todos los objetos (árboles, edificios, plantas y el jugador) se ordenan por `tx + ty` antes de dibujarse.
+- Para cambiar el mapa edita `EDIFICIOS` y `ARBOLES` en `iso.js`. Las casillas ocupadas se bloquean solas para el pathfinding.
+- Las parcelas se numeran según el orden de desbloqueo (`ORDEN_PARCELAS` en `config.js`), no por su posición.
 
 ## Cómo funciona el tiempo (incluso con el navegador cerrado)
 
@@ -72,4 +91,4 @@ La tienda, el selector, el inventario y el mercado lo toman automáticamente.
 
 ## Ideas para la siguiente fase
 
-Precios de mercado que varían por día, eventos (sequía, lluvia), riego, animales (gallinas, vacas), pedidos/encargos de clientes, exportar/importar partida, PWA instalable y sonidos.
+Diferencias reales entre personajes (herramientas, rubros o precios propios), precios de mercado que varían por día, eventos (sequía, lluvia), riego, animales (gallinas, vacas), pedidos de clientes, ciclo día/noche, exportar/importar partida, PWA instalable y sonidos.

@@ -20,6 +20,7 @@
   'use strict';
   const Conuco = (global.Conuco = global.Conuco || {});
   const C = Conuco.CONFIG;
+  const M = Conuco.MAPA;
   const POR_ID = Conuco.CULTIVOS_POR_ID;
 
   let estado = null;
@@ -47,7 +48,14 @@
       cosechas: {},
       parcelas,
       estadisticas: { cosechadas: 0, vendidas: 0, ganado: 0 },
+      // etnia null = todavía no ha elegido personaje (se muestra la pantalla de selección)
+      jugador: { etnia: null, nombre: '', tx: M.SPAWN.x + 0.5, ty: M.SPAWN.y + 0.5 },
     };
+  }
+
+  /** Nombre del jugador: sin caracteres de control ni < >, máximo 16 letras. */
+  function limpiarNombre(valor) {
+    return String(valor == null ? '' : valor).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
   }
 
   function numero(valor, defecto, minimo = 0) {
@@ -85,6 +93,15 @@
       cosechadas: Math.floor(numero(e.cosechadas, 0)),
       vendidas: Math.floor(numero(e.vendidas, 0)),
       ganado: Math.floor(numero(e.ganado, 0)),
+    };
+
+    // Jugador (las partidas v1 no lo tienen: quedan sin personaje y se les pide elegir uno)
+    const j = crudo.jugador && typeof crudo.jugador === 'object' ? crudo.jugador : {};
+    base.jugador = {
+      etnia: Conuco.ETNIAS.some((e) => e.id === j.etnia) ? j.etnia : null,
+      nombre: limpiarNombre(j.nombre),
+      tx: Math.min(M.ANCHO - 0.5, numero(j.tx, M.SPAWN.x + 0.5)),
+      ty: Math.min(M.ALTO - 0.5, numero(j.ty, M.SPAWN.y + 0.5)),
     };
 
     if (Array.isArray(crudo.parcelas)) {
@@ -161,10 +178,13 @@
     });
   }
 
-  /** Única vía para modificar el estado: aplica el cambio, notifica a la UI y guarda. */
-  function mutar(fn) {
+  /**
+   * Única vía para modificar el estado: aplica el cambio, notifica a la UI y guarda.
+   * Con { silencioso: true } no redibuja los paneles (para cambios frecuentes como la posición).
+   */
+  function mutar(fn, opciones) {
     fn(estado);
-    emitir();
+    if (!opciones || !opciones.silencioso) emitir();
     programarGuardado();
   }
 
@@ -185,6 +205,7 @@
     mutar,
     suscribir,
     reiniciar,
+    limpiarNombre,
     get: () => estado,
     esPersistente: () => persistente,
   };
