@@ -149,7 +149,7 @@
 
     // 3. canteros (en terrenos ajenos se ven enmalezados)
     estado.parcelas.forEach((p, i) => {
-      const propio = Iso.terrenoComprado(Conuco.terrenoDeParcela(i));
+      const propio = Iso.terrenoComprado(Iso.terrenoDeParcela(i));
       S.parcelaSuelo(ctx, i, !p.desbloqueada, zona);
       if (propio && !p.desbloqueada) S.parcelaBloqueadaBorde(ctx, i);
     });
@@ -159,7 +159,7 @@
     for (let k = 0; k < estado.terrenos.length; k++) if (!estado.terrenos[k]) { ajenos.push(k); S.terrenoVelo(ctx, k); }
 
     // 5. resaltes
-    if (o.hover) {
+    if (o.hover && !o.construir) {
       if (o.hover.parcela >= 0 && Iso.terrenoComprado(Iso.terrenoDe(o.hover.tx, o.hover.ty))) S.parcelaResalte(ctx, o.hover.parcela);
       else if (Iso.esCaminable(o.hover.tx, o.hover.ty)) S.tileResalte(ctx, o.hover.tx, o.hover.ty);
     }
@@ -178,6 +178,7 @@
     // 6. objetos ordenados por profundidad (más lejos primero)
     const objs = [];
     const agregar = (tx, ty, prof, f) => { const p = Iso.aPantalla(tx, ty); if (visible(p.x, p.y)) objs.push({ prof, f }); };
+    for (const e of Iso.graneros()) agregar(e.x + 1, e.y + 1, e.x + e.y + 2, () => S.edificio(ctx, e, t));
     for (const e of mapa.edificios) agregar(e.x + e.w / 2, e.y + e.d / 2, e.x + e.w / 2 + e.y + e.d / 2, () => S.edificio(ctx, e, t));
     for (const a of mapa.arboles) agregar(a.x + 0.5, a.y + 0.5, a.x + a.y + 1, () => S.arbol(ctx, a, t));
     for (const k of ajenos) {
@@ -214,6 +215,9 @@
     }
     objs.sort((u, v) => u.prof - v.prof);
     for (const ob of objs) ob.f();
+
+    // vista previa de lo que se está construyendo
+    if (o.construir && o.construir.x != null) S.fantasma(ctx, o.construir.tipo, o.construir.x, o.construir.y, o.construir.valido, t);
 
     // 7. aves en vuelo
     for (const b of o.aves || []) {

@@ -9,7 +9,9 @@
  *   terrenos: [bool x 9],                // terrenos comprados (por filas; el 4 es el inicial)
  *   semillas: { maiz: 3, ... },          // inventario de semillas
  *   cosechas: { maiz: 6, ... },          // cosecha lista para vender
- *   parcelas: [ { desbloqueada, cultivo, plantadoEn }, ... ]  // 81 (9 por terreno)
+ *   parcelas: [ { desbloqueada, cultivo, plantadoEn }, ... ]  // 81 fijas (9 por terreno)
+ *            + las que pone el jugador: { desbloqueada: true, cultivo, plantadoEn, x, y }
+ *   graneros: [ { x, y }, ... ],         // graneros construidos (2x2 casillas, amplían el almacén)
  *   jugador: { etnia, nombre, tx, ty },
  *   tutorial: { hecho },                 // la guía de los primeros pasos ya terminó
  *   estadisticas: { sembradas, cosechadas, vendidas, ganado, semillasCompradas }
@@ -56,6 +58,7 @@
       semillas: {},
       cosechas: {},
       parcelas,
+      graneros: [],
       estadisticas: { sembradas: 0, cosechadas: 0, vendidas: 0, ganado: 0, semillasCompradas: 0 },
       // etnia null = todavía no ha elegido personaje (se muestra la configuración inicial)
       jugador: { etnia: null, nombre: '', tx: M.SPAWN.x + 0.5, ty: M.SPAWN.y + 0.5 },
@@ -140,9 +143,25 @@
         base.parcelas[i] = { desbloqueada: !!p.desbloqueada, cultivo, plantadoEn };
       }
     }
+    // Parcelas y graneros puestos por el jugador (posición en casillas, dentro del mapa)
+    const posValida = (o) => o && Number.isInteger(o.x) && Number.isInteger(o.y) && o.x >= 0 && o.y >= 0 && o.x <= M.ANCHO - 2 && o.y <= M.ALTO - 2;
+    if (!viejo && Array.isArray(crudo.parcelas)) {
+      for (const p of crudo.parcelas.slice(TOTAL, TOTAL + 200)) {
+        if (!posValida(p)) continue;
+        const cultivo = POR_ID[p.cultivo] ? p.cultivo : null;
+        let plantadoEn = cultivo ? numero(p.plantadoEn, ahora) : 0;
+        if (plantadoEn > ahora + 60 * 1000) plantadoEn = ahora;
+        base.parcelas.push({ desbloqueada: true, cultivo, plantadoEn, x: p.x, y: p.y });
+      }
+    }
+    if (Array.isArray(crudo.graneros)) {
+      base.graneros = crudo.graneros.filter(posValida).slice(0, C.MAX_GRANEROS).map((g) => ({ x: g.x, y: g.y }));
+    }
+
     // Coherencia: las iniciales siempre abiertas; fuera del terreno inicial, abiertas = terreno comprado
     base.parcelas.forEach((p, i) => {
       if (i < C.PARCELAS_INICIALES) p.desbloqueada = true;
+      else if (i >= TOTAL) p.desbloqueada = true;
       else if (i >= C.PARCELAS_POR_TERRENO) p.desbloqueada = base.terrenos[Conuco.terrenoDeParcela(i)];
       if (!p.desbloqueada) { p.cultivo = null; p.plantadoEn = 0; }
     });

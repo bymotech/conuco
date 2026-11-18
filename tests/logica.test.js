@@ -20,7 +20,7 @@ function crearMundo(almacen = {}, almacenamientoRoto = false) {
   };
   ctx.window = ctx;
   vm.createContext(ctx);
-  for (const f of ['config', 'state', 'game']) {
+  for (const f of ['config', 'state', 'game', 'iso']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), ctx, { filename: f + '.js' });
   }
   return { Conuco: ctx.Conuco, almacen };
@@ -273,6 +273,92 @@ prueba('sin localStorage (modo privado) el juego sigue funcionando', () => {
   assert.equal(Conuco.State.esPersistente(), false);
   assert.equal(Conuco.Game.plantar(0, 'maiz', 0).ok, true);
   assert.equal(Conuco.Game.cosechar(0, 30_000).ok, true);
+});
+
+prueba('almacén: 20 semillas al empezar, +10 por nivel y +40 por granero', () => {
+  const { Conuco } = crearMundo();
+  empezar(Conuco);
+  const G = Conuco.Game, S = Conuco.State;
+  S.mutar((s) => { s.dinero = 10000; });
+  assert.equal(G.capacidadSemillas(), 20);
+  assert.equal(G.semillasGuardadas(), 6);
+  assert.equal(G.comprarSemillas('maiz', 15).ok, false, 'no caben 15 (solo 14)');
+  assert.equal(G.comprarSemillas('maiz', 14).ok, true);
+  assert.equal(G.espacioSemillas(), 0);
+  assert.equal(G.comprarSemillas('maiz', 1).ok, false, 'almacén lleno');
+  S.mutar((s) => { s.xp = 50; }); // nivel 2
+  assert.equal(G.capacidadSemillas(), 30);
+  S.mutar((s) => { s.graneros.push({ x: 0, y: 0 }); });
+  assert.equal(G.capacidadSemillas(), 70);
+});
+
+prueba('parcela extra: solo en espacio libre de un terreno tuyo; el precio sube', () => {
+  const { Conuco } = crearMundo();
+  empezar(Conuco);
+  const G = Conuco.Game, S = Conuco.State, I = Conuco.Iso;
+  const o = I.origenTerreno(4);
+  assert.equal(G.comprarParcelaEn(o.x + 9, o.y + 3).ok, false, 'sin dinero');
+  S.mutar((s) => { s.dinero = 5000; });
+  assert.equal(G.costoParcelaExtra(), 150);
+  // sobre el campo fijo, sobre un edificio, fuera del terreno comprado
+  assert.equal(I.puedeColocar('parcela', o.x + 3, o.y + 3).razon, 'ocupado');
+  assert.equal(I.puedeColocar('parcela', o.x, o.y).razon, 'ocupado');
+  assert.equal(I.puedeColocar('parcela', o.x - 3, o.y + 4).razon, 'terreno');
+  // buscar un hueco libre en el terreno inicial
+  let lugar = null;
+  for (let y = o.y; y < o.y + 11 && !lugar; y++) for (let x = o.x; x < o.x + 11 && !lugar; x++) if (I.puedeColocar('parcela', x, y).ok) lugar = { x, y };
+  assert.ok(lugar, 'hay espacio libre');
+  assert.equal(I.puedeColocar('parcela', lugar.x, lugar.y, [{ tx: lugar.x + 1, ty: lugar.y, quien: 'animal' }]).razon, 'animal');
+  const r = G.comprarParcelaEn(lugar.x, lugar.y);
+  assert.equal(r.ok, true);
+  const i = r.indice;
+  assert.equal(I.parcelaEnTile(lugar.x + 1, lugar.y + 1), i);
+  assert.equal(I.puedeColocar('parcela', lugar.x, lugar.y).razon, 'ocupado', 'no se encima');
+  assert.equal(G.costoParcelaExtra(), 177);
+  // se siembra y cosecha como cualquier otra
+  assert.equal(G.plantar(i, 'maiz', 0).ok, true);
+  assert.equal(G.cosechar(i, 30_000).ok, true);
+  assert.ok(I.buscarCamino(Conuco.MAPA.SPAWN.x, Conuco.MAPA.SPAWN.y, lugar.x, lugar.y), 'se puede caminar hasta ella');
+});
+
+prueba('granero: no va en el camino ni cierra el paso; bloquea al caminar; máximo 6', () => {
+  const { Conuco } = crearMundo();
+  empezar(Conuco);
+  const G = Conuco.Game, S = Conuco.State, I = Conuco.Iso;
+  S.mutar((s) => { s.dinero = 100000; });
+  const o = I.origenTerreno(4);
+  assert.equal(I.puedeColocar('granero', o.x + 2, o.y + 2).razon !== null, true);
+  assert.equal(G.costoGranero(), 250);
+  let lugar = null;
+  for (let y = o.y; y < o.y + 11 && !lugar; y++) for (let x = o.x; x < o.x + 11 && !lugar; x++) if (I.puedeColocar('granero', x, y).ok) lugar = { x, y };
+  assert.ok(lugar);
+  assert.equal(G.comprarGranero(lugar.x, lugar.y).ok, true);
+  assert.equal(I.esCaminable(lugar.x, lugar.y), false);
+  assert.equal(G.costoGranero(), 500);
+  assert.equal(I.graneros().length, 1);
+  S.mutar((s) => { s.graneros = [1, 2, 3, 4, 5, 6].map((k) => ({ x: k, y: 0 })); });
+  assert.equal(G.comprarGranero(lugar.x + 3, lugar.y).ok, false, 'máximo alcanzado');
+});
+
+prueba('parcelas extra y graneros se guardan y se recargan', () => {
+  const almacen = {};
+  const a = crearMundo(almacen);
+  empezar(a.Conuco);
+  a.Conuco.State.mutar((s) => { s.dinero = 9000; });
+  const I = a.Conuco.Iso, o = I.origenTerreno(4);
+  let p = null, g = null;
+  for (let y = o.y; y < o.y + 11; y++) for (let x = o.x; x < o.x + 11; x++) { if (!p && I.puedeColocar('parcela', x, y).ok) p = { x, y }; }
+  a.Conuco.Game.comprarParcelaEn(p.x, p.y);
+  for (let y = o.y; y < o.y + 11; y++) for (let x = o.x; x < o.x + 11; x++) { if (!g && I.puedeColocar('granero', x, y).ok) g = { x, y }; }
+  a.Conuco.Game.comprarGranero(g.x, g.y);
+  a.Conuco.State.guardar();
+  const b = crearMundo(almacen);
+  b.Conuco.State.cargar();
+  const s = b.Conuco.State.get();
+  assert.equal(s.parcelas.length, 82);
+  assert.equal(s.parcelas[81].x, p.x);
+  igual(s.graneros, [g]);
+  assert.equal(b.Conuco.Iso.parcelaEnTile(p.x, p.y), 81);
 });
 
 console.log(`\n${pruebas} pruebas OK`);

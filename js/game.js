@@ -114,7 +114,7 @@
     return S.get().parcelas.filter((p) => estadoParcela(p, ahora).tipo === 'lista').length;
   }
 
-  const indiceValido = (i) => Number.isInteger(i) && i >= 0 && i < Conuco.TOTAL_PARCELAS;
+  const indiceValido = (i) => Number.isInteger(i) && i >= 0 && i < S.get().parcelas.length;
 
   function comprarParcela(idx) {
     const s = S.get();
@@ -128,6 +128,73 @@
     });
     return ok(`¡Nueva parcela desbloqueada por ${bs(costo)}!`);
   }
+
+  // ---------- Construir: parcelas extra y graneros ----------
+
+  const RAZONES = {
+    fuera: 'Ahí no cabe: se sale del mapa.',
+    terreno: 'Ese terreno todavía no es tuyo.',
+    ocupado: 'Ese espacio está ocupado (árbol, edificio o parcela).',
+    agua: 'No se puede construir sobre el agua.',
+    camino: 'El granero no puede ir sobre el camino.',
+    bloquea: 'Ahí el granero cerraría el paso a otra parte del conuco.',
+    animal: 'Hay un animal ahí. Espera a que se mueva 🐄',
+    jugador: 'Tu personaje está parado ahí. Muévelo un poco.',
+  };
+  const textoRazon = (r) => RAZONES[r] || 'No se puede construir ahí.';
+
+  const parcelasExtra = (s = S.get()) => Math.max(0, s.parcelas.length - Conuco.TOTAL_PARCELAS);
+
+  function costoParcelaExtra(s = S.get()) {
+    return Math.round(C.COSTO_PARCELA_EXTRA_BASE * Math.pow(C.COSTO_PARCELA_EXTRA_FACTOR, parcelasExtra(s)));
+  }
+
+  function costoGranero(s = S.get()) {
+    return Math.round(C.COSTO_GRANERO_BASE * Math.pow(C.COSTO_GRANERO_FACTOR, s.graneros.length));
+  }
+
+  /**
+   * Pone una parcela nueva de 2x2 con su esquina de arriba en (x, y).
+   * evitar: casillas donde ahora hay animales o está el jugador.
+   */
+  function comprarParcelaEn(x, y, evitar) {
+    const s = S.get();
+    const costo = costoParcelaExtra(s);
+    if (s.dinero < costo) return fallo(`Te faltan ${bs(costo - s.dinero)} para una parcela nueva.`);
+    const lugar = Conuco.Iso.puedeColocar('parcela', x, y, evitar);
+    if (!lugar.ok) return fallo(textoRazon(lugar.razon));
+    S.mutar((e) => {
+      e.dinero -= costo;
+      e.parcelas.push({ desbloqueada: true, cultivo: null, plantadoEn: 0, x, y });
+    });
+    return ok(`¡Parcela nueva por ${bs(costo)}! 🌱`, { indice: S.get().parcelas.length - 1 });
+  }
+
+  function comprarGranero(x, y, evitar) {
+    const s = S.get();
+    if (s.graneros.length >= C.MAX_GRANEROS) return fallo(`Ya tienes el máximo de ${C.MAX_GRANEROS} graneros.`);
+    const costo = costoGranero(s);
+    if (s.dinero < costo) return fallo(`Te faltan ${bs(costo - s.dinero)} para un granero.`);
+    const lugar = Conuco.Iso.puedeColocar('granero', x, y, evitar);
+    if (!lugar.ok) return fallo(textoRazon(lugar.razon));
+    S.mutar((e) => {
+      e.dinero -= costo;
+      e.graneros.push({ x, y });
+    });
+    return ok(`¡Granero construido por ${bs(costo)}! Ahora guardas ${capacidadSemillas()} semillas 📦`);
+  }
+
+  // ---------- Almacén de semillas ----------
+
+  /** Tope de semillas: sube con el nivel y con cada granero. */
+  function capacidadSemillas(s = S.get()) {
+    return C.ALMACEN_BASE + C.ALMACEN_POR_NIVEL * (nivelDeXp(s.xp) - 1) + C.ALMACEN_POR_GRANERO * s.graneros.length;
+  }
+
+  const semillasGuardadas = (s = S.get()) => Object.values(s.semillas).reduce((a, b) => a + b, 0);
+
+  /** Cuántas semillas más caben. */
+  const espacioSemillas = (s = S.get()) => Math.max(0, capacidadSemillas(s) - semillasGuardadas(s));
 
   // ---------- Terrenos ----------
 
@@ -246,6 +313,12 @@
     cantidad = Math.floor(cantidad);
     if (!cultivo || cantidad < 1) return fallo('Compra no válida.');
     if (nivelDeXp(s.xp) < cultivo.nivelReq) return fallo(`${cultivo.nombre} se desbloquea en el nivel ${cultivo.nivelReq}.`);
+    const libre = espacioSemillas(s);
+    if (cantidad > libre) {
+      return fallo(libre
+        ? `Solo te caben ${libre} semilla(s) más (almacén ${semillasGuardadas(s)}/${capacidadSemillas(s)}). Construye un granero 📦`
+        : `Tu almacén está lleno (${capacidadSemillas(s)} semillas). Construye un granero 📦 o sube de nivel.`);
+    }
     const total = cultivo.costoSemilla * cantidad;
     if (s.dinero < total) return fallo(`Te faltan ${bs(total - s.dinero)}.`);
     S.mutar((e) => {
@@ -306,6 +379,8 @@
   Conuco.Game = {
     configurarPartida, elegirAvatar, guardarPosicion, cultivosDisponibles, terminarTutorial,
     costoTerreno, puedeComprarTerreno, comprarTerreno,
+    costoParcelaExtra, costoGranero, comprarParcelaEn, comprarGranero, textoRazon,
+    capacidadSemillas, semillasGuardadas, espacioSemillas,
     nivelDeXp, xpDeNivel, progresoNivel,
     estadoParcela, costoParcela, contarListas,
     comprarParcela, plantar, cosechar, cosecharTodo,

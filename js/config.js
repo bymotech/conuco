@@ -27,6 +27,18 @@
     COSTO_TERRENO_BASE: 600,
     COSTO_TERRENO_FACTOR: 2,
 
+    // Parcelas extra que el jugador pone donde quiera (en espacio libre de sus terrenos)
+    COSTO_PARCELA_EXTRA_BASE: 150,
+    COSTO_PARCELA_EXTRA_FACTOR: 1.18,
+
+    // Almacén de semillas: tope = BASE + POR_NIVEL * (nivel - 1) + POR_GRANERO * graneros
+    ALMACEN_BASE: 20,
+    ALMACEN_POR_NIVEL: 10,
+    ALMACEN_POR_GRANERO: 40,
+    COSTO_GRANERO_BASE: 250,
+    COSTO_GRANERO_FACTOR: 2,
+    MAX_GRANEROS: 6,
+
     // Nivel = floor(sqrt(xp / XP_BASE)) + 1  ->  Nv2: 50xp, Nv3: 200xp, Nv4: 450xp...
     XP_BASE: 50,
 

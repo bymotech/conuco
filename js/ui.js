@@ -104,6 +104,9 @@
       const primera = lista.find((c) => c.nivelReq <= nivel && (s.semillas[c.id] || 0) > 0);
       seleccion = primera ? primera.id : null;
     }
+    const guardadas = G.semillasGuardadas(s), cap = G.capacidadSemillas(s);
+    el.almacen.querySelector('b').textContent = `${guardadas}/${cap}`;
+    el.almacen.classList.toggle('lleno', guardadas >= cap);
     el.seedbar.innerHTML = lista.map((c) => {
       const n = s.semillas[c.id] || 0;
       const bloq = c.nivelReq > nivel;
@@ -118,7 +121,11 @@
     const s = S.get();
     const nivel = G.nivelDeXp(s.xp);
     const z = ZONAS_POR_ID[s.zona];
-    const cab = z ? `<div class="vacio" style="padding:4px 0 2px">Semillas de ${z.emoji} ${z.nombre}</div>` : '';
+    const guardadas = G.semillasGuardadas(s), cap = G.capacidadSemillas(s), libre = G.espacioSemillas(s);
+    const cab = `<div class="info-almacen">📦 Almacén: <b>${guardadas} / ${cap} semillas</b>${z ? ` · semillas de ${z.emoji} ${z.nombre}` : ''}
+      <div class="almacen-barra"><i class="${libre ? '' : 'lleno'}" style="width:${Math.min(100, Math.round((guardadas / cap) * 100))}%"></i></div>
+      ${libre ? `Te caben ${libre} más.` : '¡Lleno!'} Sube de nivel (+${Conuco.CONFIG.ALMACEN_POR_NIVEL}) o construye un granero (+${Conuco.CONFIG.ALMACEN_POR_GRANERO}) para guardar más.</div>`;
+    const btnCompra = (c, n) => `<button class="btn" type="button" data-accion="comprar" data-id="${c.id}" data-n="${n}" ${s.dinero < c.costoSemilla * n || n > libre ? 'disabled' : ''}>×${n} · ${fmtBs(c.costoSemilla * n)}</button>`;
     el.panelSemillas.innerHTML = cab + G.cultivosDisponibles(s).map((c) => {
       const bloq = c.nivelReq > nivel;
       const tengo = s.semillas[c.id] || 0;
@@ -126,11 +133,7 @@
         ? `Se desbloquea en el nivel ${c.nivelReq}`
         : `Crece en ${fmtDuracion(c.tiempoMs)} · da ${c.rendimiento} · se vende a ${fmtBs(c.precioVenta)} c/u · tienes ${tengo}`;
       const acciones = bloq ? '' : `
-        <div class="acciones">
-          <button class="btn" type="button" data-accion="comprar" data-id="${c.id}" data-n="1" ${s.dinero < c.costoSemilla ? 'disabled' : ''}>×1 · ${fmtBs(c.costoSemilla)}</button>
-          <button class="btn" type="button" data-accion="comprar" data-id="${c.id}" data-n="5" ${s.dinero < c.costoSemilla * 5 ? 'disabled' : ''}>×5 · ${fmtBs(c.costoSemilla * 5)}</button>
-          <button class="btn" type="button" data-accion="comprar" data-id="${c.id}" data-n="10" ${s.dinero < c.costoSemilla * 10 ? 'disabled' : ''}>×10 · ${fmtBs(c.costoSemilla * 10)}</button>
-        </div>`;
+        <div class="acciones">${btnCompra(c, 1)}${btnCompra(c, 5)}${btnCompra(c, 10)}</div>`;
       return `<div class="fila ${bloq ? 'bloq' : ''}">
         <span class="em">${bloq ? '🔒' : c.emoji}</span>
         <div><div class="nombre">${c.nombre}</div><div class="det">${det}</div></div>
@@ -163,19 +166,84 @@
     el.panelCosecha.innerHTML = `<button class="btn btn-primary total" type="button" data-accion="vender-todo">💰 Vender toda la cosecha (${fmtBs(total)})</button>` + html;
   }
 
+  // ---------- Panel: construir ----------
+  function renderConstruir() {
+    const s = S.get();
+    const C = Conuco.CONFIG;
+    const cp = G.costoParcelaExtra(s), cg = G.costoGranero(s);
+    const extras = s.parcelas.length - Conuco.TOTAL_PARCELAS;
+    const maxG = s.graneros.length >= C.MAX_GRANEROS;
+    const falta = (n) => (s.dinero < n ? ` · te faltan ${fmtBs(n - s.dinero)}` : '');
+    el.panelConstruir.innerHTML = `
+      <div class="fila">
+        <span class="em">🟫</span>
+        <div><div class="nombre">Parcela nueva (2×2)</div>
+          <div class="det">Ponla en cualquier espacio libre de tus terrenos: sin árboles, edificios, agua ni animales. Tienes ${extras} extra.</div></div>
+        <div class="acciones"><button class="btn btn-primary" type="button" data-construir="parcela" ${s.dinero < cp ? 'disabled' : ''}>Elegir lugar · ${fmtBs(cp)}</button></div>
+        ${s.dinero < cp ? `<div class="det" style="grid-column:2">Cuesta ${fmtBs(cp)}${falta(cp)}</div>` : ''}
+      </div>
+      <div class="fila">
+        <span class="em">🏚️</span>
+        <div><div class="nombre">Granero (2×2) · ${s.graneros.length}/${C.MAX_GRANEROS}</div>
+          <div class="det">Guarda ${C.ALMACEN_POR_GRANERO} semillas más. Va sobre pasto (no en el camino). Tu almacén: ${G.semillasGuardadas(s)}/${G.capacidadSemillas(s)}.</div></div>
+        <div class="acciones">${maxG ? '<b>¡Ya tienes todos!</b>' : `<button class="btn btn-primary" type="button" data-construir="granero" ${s.dinero < cg ? 'disabled' : ''}>Elegir lugar · ${fmtBs(cg)}</button>`}</div>
+        ${!maxG && s.dinero < cg ? `<div class="det" style="grid-column:2">Cuesta ${fmtBs(cg)}${falta(cg)}</div>` : ''}
+      </div>
+      <div class="vacio" style="padding:8px">Los terrenos con letrero <b>SE VENDE</b> se compran tocándolos en el mapa.</div>`;
+  }
+
+  // ---------- Modo construir ----------
+  const NOMBRES_OBRA = { parcela: 'parcela', granero: 'granero' };
+
+  function empezarConstruir(tipo) {
+    cerrarPanel();
+    Conuco.Mapa.modoConstruir(tipo);
+    const costo = tipo === 'granero' ? G.costoGranero() : G.costoParcelaExtra();
+    setTexto(el.bannerTexto, `🔨 Toca un espacio libre para tu ${NOMBRES_OBRA[tipo]} (${fmtBs(costo)})`);
+    el.banner.hidden = false;
+  }
+
+  function salirConstruir() {
+    Conuco.Mapa.modoConstruir(null);
+    el.banner.hidden = true;
+  }
+
+  /** El mapa pide confirmar dónde construir. */
+  function confirmarConstruccion(tipo, x, y, evitar) {
+    const costo = tipo === 'granero' ? G.costoGranero() : G.costoParcelaExtra();
+    confirmar({
+      icono: tipo === 'granero' ? '🏚️' : '🟫',
+      titulo: tipo === 'granero' ? '¿Construir el granero aquí?' : '¿Poner la parcela aquí?',
+      texto: tipo === 'granero'
+        ? `Cuesta ${fmtBs(costo)}. Podrás guardar ${Conuco.CONFIG.ALMACEN_POR_GRANERO} semillas más.`
+        : `Cuesta ${fmtBs(costo)}. Queda lista para sembrar.`,
+      si: `Construir · ${fmtBs(costo)}`,
+    }, () => {
+      const res = tipo === 'granero' ? G.comprarGranero(x, y, evitar) : G.comprarParcelaEn(x, y, evitar);
+      mostrar(res);
+      Conuco.Mapa.soltarConstruccion();
+      if (res.ok) {
+        Conuco.Mapa.particula(tipo === 'granero' ? '🏚️ ¡Listo!' : '🌱 ¡Nueva!', x + 1, y + 1);
+        Conuco.Fiesta.confeti(60, Conuco.Mapa.pantallaDeTile(x + 1, y + 1));
+        salirConstruir();
+      }
+    }, () => Conuco.Mapa.soltarConstruccion());
+  }
+
   function cambiarTab(nombre) {
     tabActiva = nombre;
-    const sem = nombre === 'semillas';
-    el.panelSemillas.hidden = !sem;
-    el.panelCosecha.hidden = sem;
-    el.tabSemillas.classList.toggle('activa', sem);
-    el.tabCosecha.classList.toggle('activa', !sem);
-    el.tabSemillas.setAttribute('aria-selected', String(sem));
-    el.tabCosecha.setAttribute('aria-selected', String(!sem));
+    const pares = [['semillas', el.tabSemillas, el.panelSemillas], ['cosecha', el.tabCosecha, el.panelCosecha], ['construir', el.tabConstruir, el.panelConstruir]];
+    for (const [id, tab, panel] of pares) {
+      const activa = id === nombre;
+      panel.hidden = !activa;
+      tab.classList.toggle('activa', activa);
+      tab.setAttribute('aria-selected', String(activa));
+    }
   }
 
   /** Abre el panel en una pestaña (lo usa también el mapa al llegar a la choza o al puesto). */
   function abrirPanel(nombre) {
+    if (Conuco.Mapa.construyendo()) salirConstruir();
     cambiarTab(nombre);
     el.panel.hidden = false;
   }
@@ -198,13 +266,15 @@
       const texto = nuevos.length
         ? `Desbloqueaste: ${nuevos.map((c) => c.emoji + ' ' + c.nombre).join(', ')}. ¡Búscalo en la tienda de semillas!`
         : '¡Tu conuco crece! Sigue sembrando y compra más tierra.';
-      Conuco.Fiesta.celebrar(`¡Nivel ${nivel}!`, texto);
+      Conuco.Fiesta.celebrar(`¡Nivel ${nivel}!`, `${texto} Tu almacén ahora guarda ${G.capacidadSemillas(s)} semillas 📦`);
     }
     nivelVisto = nivel;
   }
 
   // ---------- Confirmaciones ----------
-  function confirmar({ icono, titulo, texto, si }, fn) {
+  let alCancelar = null;
+  function confirmar({ icono, titulo, texto, si }, fn, cancelar) {
+    alCancelar = cancelar || null;
     setTexto(el.confIcono, icono || '❓');
     setTexto(el.confTitulo, titulo);
     setTexto(el.confTexto, texto);
@@ -330,6 +400,7 @@
     renderSeedbar();
     renderSemillas();
     renderCosecha();
+    renderConstruir();
     actualizarBotones();
     revisarNivel();
     const s = S.get();
@@ -368,6 +439,8 @@
       btnTienda: $('btn-tienda'), btnMercado: $('btn-mercado'),
       panel: $('panel'), tabSemillas: $('tab-semillas'), tabCosecha: $('tab-cosecha'),
       panelSemillas: $('panel-semillas'), panelCosecha: $('panel-cosecha'),
+      tabConstruir: $('tab-construir'), panelConstruir: $('panel-construir'),
+      almacen: $('almacen'), banner: $('banner-construir'), bannerTexto: $('banner-texto'),
       toasts: $('toasts'), aviso: $('aviso-almacenamiento'),
       menu: $('menu'), btnMenu: $('btn-menu'),
       asistente: $('asistente'), nombreJugador: $('nombre-jugador'),
@@ -401,10 +474,14 @@
     el.nombreJugador.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !el.btnSiguiente2.disabled) el.btnSiguiente2.click(); });
 
     // --- confirmación
-    el.confNo.addEventListener('click', () => { el.confirmar.hidden = true; alConfirmar = null; });
+    el.confNo.addEventListener('click', () => {
+      el.confirmar.hidden = true; alConfirmar = null;
+      const c = alCancelar; alCancelar = null;
+      if (c) c();
+    });
     el.confSi.addEventListener('click', () => {
       el.confirmar.hidden = true;
-      const fn = alConfirmar; alConfirmar = null;
+      const fn = alConfirmar; alConfirmar = null; alCancelar = null;
       if (fn) fn();
     });
 
@@ -426,6 +503,7 @@
         si: 'Sí, reiniciar',
       }, () => {
         seleccion = null; nivelVisto = null; dineroVisto = null;
+        salirConstruir();
         S.reiniciar();
         Conuco.Mapa.reubicar();
       });
@@ -433,11 +511,11 @@
 
     // --- mapa (necesita saber qué semilla hay elegida y poder avisar al jugador)
     Conuco.Mapa.iniciar({
-      obtenerSeleccion: () => seleccion, mostrar, toast, abrirPanel, comprarTerreno,
+      obtenerSeleccion: () => seleccion, mostrar, toast, abrirPanel, comprarTerreno, confirmarConstruccion,
       alCuadro: () => Conuco.Guia.alCuadro(),
     });
     Conuco.Guia.iniciar({
-      ocultaPor: () => !el.asistente.hidden || !el.confirmar.hidden || !$('fiesta-tarjeta').hidden || !el.panel.hidden,
+      ocultaPor: () => !el.asistente.hidden || !el.confirmar.hidden || !$('fiesta-tarjeta').hidden || !el.panel.hidden || !!Conuco.Mapa.construyendo(),
     });
 
     // --- panel y botones
@@ -450,9 +528,18 @@
     el.btnCosecharTodo.addEventListener('click', () => mostrar(G.cosecharTodo()));
     el.tabSemillas.addEventListener('click', () => cambiarTab('semillas'));
     el.tabCosecha.addEventListener('click', () => cambiarTab('cosecha'));
+    el.tabConstruir.addEventListener('click', () => cambiarTab('construir'));
+    el.panelConstruir.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-construir]');
+      if (b && !b.disabled) empezarConstruir(b.dataset.construir);
+    });
+    $('btn-construir').addEventListener('click', () => (el.panel.hidden || tabActiva !== 'construir' ? abrirPanel('construir') : cerrarPanel()));
+    $('btn-salir-construir').addEventListener('click', salirConstruir);
+    el.almacen.addEventListener('click', () => abrirPanel('semillas'));
     doc.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Escape') return;
       if (!el.confirmar.hidden) el.confNo.click();
+      else if (Conuco.Mapa.construyendo()) salirConstruir();
       else if (!el.panel.hidden) cerrarPanel();
       else cerrarMenu();
     });

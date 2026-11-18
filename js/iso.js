@@ -56,8 +56,11 @@
   const INVERSO = [];     // posición en el campo 3x3 -> orden dentro del terreno
   M.ORDEN_PARCELAS.forEach((pos, k) => { INVERSO[pos] = k; });
 
-  /** Casilla de la esquina de arriba de la parcela lógica `i`. */
+  const TOTAL = Conuco.TOTAL_PARCELAS;
+
+  /** Casilla de la esquina de arriba de la parcela lógica `i` (fija o puesta por el jugador). */
   function parcelaOrigen(i) {
+    if (i >= TOTAL) { const p = estado().parcelas[i]; return { x: p.x, y: p.y }; }
     const o = origenTerreno(Conuco.terrenoDeParcela(i));
     const pos = M.ORDEN_PARCELAS[i % PPT];
     return {
@@ -69,6 +72,12 @@
   /** Índice lógico de la parcela que cubre la casilla, o -1. */
   function parcelaEnTile(tx, ty) {
     if (!dentro(tx, ty)) return -1;
+    const extra = dinamico().parcela[ty * M.ANCHO + tx];
+    if (extra >= 0) return extra;
+    return parcelaFijaEnTile(tx, ty);
+  }
+
+  function parcelaFijaEnTile(tx, ty) {
     const t = terrenoDe(tx, ty);
     const o = origenTerreno(t);
     const lx = tx - o.x - M.CAMPO_X0, ly = ty - o.y - M.CAMPO_Y0;
@@ -77,6 +86,13 @@
     const pos = Math.floor(ly / M.PARCELA_TAM) * M.PARCELAS_LADO + Math.floor(lx / M.PARCELA_TAM);
     return POS_TERRENO[t] * PPT + INVERSO[pos];
   }
+
+  /** Terreno de cualquier parcela (fija o puesta por el jugador). */
+  const terrenoDeParcela = (i) => {
+    if (i < TOTAL) return Conuco.terrenoDeParcela(i);
+    const o = parcelaOrigen(i);
+    return terrenoDe(o.x, o.y);
+  };
 
   /** Parcelas (índices) de un terreno. */
   const parcelasDeTerreno = (t) => Array.from({ length: PPT }, (_, k) => POS_TERRENO[t] * PPT + k);
@@ -92,7 +108,7 @@
   }
 
   function suelo0(tx, ty, zona) {
-    if (parcelaEnTile(tx, ty) >= 0) return 2;
+    if (parcelaFijaEnTile(tx, ty) >= 0) return 2;
     const { lx, ly } = local(tx, ty);
     const enAnillo = lx >= 2 && lx <= 9 && ly >= 2 && ly <= 9;
     const cruce = (lx === 5 || lx === 6) && (ly < 2 || ly > 9) || (ly === 5 || ly === 6) && (lx < 2 || lx > 9);
@@ -158,24 +174,105 @@
     return cache[zonaId] || (cache[zonaId] = construir(zonaId));
   }
 
+  // ---------- Lo que construye el jugador (parcelas extra y graneros) ----------
+
+  let dinCache = { clave: null, val: null };
+
+  /** Ocupación de lo que puso el jugador. Se recalcula solo si cambia la partida o la cantidad. */
+  function dinamico() {
+    const e = estado();
+    const clave = e ? e.parcelas.length + ':' + (e.graneros ? e.graneros.length : 0) : '-';
+    if (dinCache.e === e && dinCache.clave === clave) return dinCache.val;
+    const parcela = new Int16Array(N).fill(-1);
+    const granero = new Int8Array(N).fill(-1);
+    if (e) {
+      for (let i = TOTAL; i < e.parcelas.length; i++) {
+        const p = e.parcelas[i];
+        for (let j = 0; j < 2; j++) for (let k = 0; k < 2; k++) if (dentro(p.x + k, p.y + j)) parcela[(p.y + j) * M.ANCHO + p.x + k] = i;
+      }
+      (e.graneros || []).forEach((g, gi) => {
+        for (let j = 0; j < 2; j++) for (let k = 0; k < 2; k++) if (dentro(g.x + k, g.y + j)) granero[(g.y + j) * M.ANCHO + g.x + k] = gi;
+      });
+    }
+    dinCache = { e, clave, val: { parcela, granero } };
+    return dinCache.val;
+  }
+
+  /** Graneros como edificios (para dibujarlos, tocarlos y caminar hasta ellos). */
+  function graneros() {
+    const e = estado();
+    return ((e && e.graneros) || []).map((g, i) => ({ id: 'granero' + i, tipo: 'granero', x: g.x, y: g.y, w: 2, d: 2, alto: 92, accion: 'granero' }));
+  }
+
   /** Tipo de suelo de una casilla: 'pasto' | 'camino' | 'parcela' | 'agua' | 'arena'. */
   const tipoSuelo = (tx, ty) => (dentro(tx, ty) ? SUELOS[mapa().suelo[ty * M.ANCHO + tx]] : null);
 
   /** Se puede pisar: dentro del mapa, sin obstáculo y en un terreno comprado. */
   function esCaminable(tx, ty) {
     if (!dentro(tx, ty)) return false;
-    return !mapa().bloqueado[ty * M.ANCHO + tx] && terrenoComprado(terrenoDe(tx, ty));
+    const id = ty * M.ANCHO + tx;
+    return !mapa().bloqueado[id] && dinamico().granero[id] < 0 && terrenoComprado(terrenoDe(tx, ty));
+  }
+
+  /** Cuántas casillas se alcanzan caminando desde la entrada (opcionalmente con casillas extra bloqueadas). */
+  function alcanzables(extraBloq) {
+    const visto = new Uint8Array(N);
+    const pila = [M.SPAWN.y * M.ANCHO + M.SPAWN.x];
+    visto[pila[0]] = 1;
+    let n = 0;
+    while (pila.length) {
+      const c = pila.pop(); n++;
+      const cx = c % M.ANCHO, cy = (c - cx) / M.ANCHO;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy, id = ny * M.ANCHO + nx;
+        if (!esCaminable(nx, ny) || visto[id] || (extraBloq && extraBloq.has(id))) continue;
+        visto[id] = 1; pila.push(id);
+      }
+    }
+    return n;
+  }
+
+  /**
+   * ¿Se puede construir algo de 2x2 con su esquina de arriba en (x, y)?
+   * tipo: 'parcela' | 'granero'. evitar: casillas ocupadas ahora (jugador, animales) como [{tx,ty,quien}].
+   * @returns {{ok:boolean, razon:string|null}}
+   *   razon: 'fuera' | 'terreno' | 'ocupado' | 'agua' | 'camino' | 'bloquea' | 'animal' | 'jugador'
+   */
+  function puedeColocar(tipo, x, y, evitar = []) {
+    const m = mapa(), d = dinamico();
+    const ids = [];
+    for (let j = 0; j < 2; j++) {
+      for (let k = 0; k < 2; k++) {
+        const tx = x + k, ty = y + j;
+        if (!dentro(tx, ty)) return { ok: false, razon: 'fuera' };
+        if (!terrenoComprado(terrenoDe(tx, ty))) return { ok: false, razon: 'terreno' };
+        const id = ty * M.ANCHO + tx;
+        if (m.suelo[id] === 3) return { ok: false, razon: 'agua' };
+        if (m.bloqueado[id] || m.suelo[id] === 2 || d.parcela[id] >= 0 || d.granero[id] >= 0) return { ok: false, razon: 'ocupado' };
+        if (tipo === 'granero' && m.suelo[id] === 1) return { ok: false, razon: 'camino' };
+        ids.push(id);
+      }
+    }
+    for (const a of evitar) {
+      if (a.tx >= x && a.tx < x + 2 && a.ty >= y && a.ty < y + 2) return { ok: false, razon: a.quien === 'jugador' ? 'jugador' : 'animal' };
+    }
+    if (tipo === 'granero') {
+      // no puede dejar partes del mapa sin salida
+      const conjunto = new Set(ids);
+      if (alcanzables(conjunto) !== alcanzables() - ids.length) return { ok: false, razon: 'bloquea' };
+    }
+    return { ok: true, razon: null };
   }
 
   /** Casillas de un terreno donde pueden andar los animales (sin parcelas, agua ni obstáculos). */
   function casillasFauna(t) {
-    const m = mapa();
+    const m = mapa(), d = dinamico();
     const o = origenTerreno(t);
     const res = [];
     for (let j = o.y; j < o.y + T; j++) {
       for (let i = o.x; i < o.x + T; i++) {
         const id = j * M.ANCHO + i;
-        if (!m.bloqueado[id] && m.suelo[id] !== 2 && m.suelo[id] !== 3) res.push({ tx: i, ty: j });
+        if (!m.bloqueado[id] && m.suelo[id] !== 2 && m.suelo[id] !== 3 && d.parcela[id] < 0 && d.granero[id] < 0) res.push({ tx: i, ty: j });
       }
     }
     return res;
@@ -283,7 +380,7 @@
 
   /** Edificio interactivo bajo un punto del mundo (usa un rectángulo que incluye su altura). */
   function edificioEnPunto(x, y) {
-    for (const o of mapa().edificios) {
+    for (const o of [...mapa().edificios, ...graneros()]) {
       if (!o.accion) continue;
       const izq = (o.x - (o.y + o.d)) * HW;
       const der = (o.x + o.w - o.y) * HW;
@@ -312,9 +409,9 @@
 
   Conuco.Iso = {
     HW, HH, aPantalla, aTile, hash, dentro,
-    mapa, tipoSuelo, esCaminable, casillasFauna,
+    mapa, tipoSuelo, esCaminable, casillasFauna, graneros, puedeColocar, firmaConstrucciones: () => { const e = estado(); return e ? e.parcelas.length + ':' + (e.graneros ? e.graneros.length : 0) : '-'; },
     terrenoDe, origenTerreno, terrenoComprado, centroTerreno, parcelasDeTerreno,
-    parcelaOrigen, parcelaEnTile,
+    parcelaOrigen, parcelaEnTile, terrenoDeParcela,
     buscarCamino, caminoHastaEdificio, edificioEnPunto, edificioPorAccion, limites,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

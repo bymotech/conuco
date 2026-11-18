@@ -87,6 +87,7 @@
   const fauna = [];
   const aves = [];
   let zonaFauna = null;
+  let firmaFauna = null;
   const VEL_ANIMAL = { cangrejo: 1.3, gallina: 0.9, iguana: 0.8, chiguire: 0.6 };
   const PASTAN = new Set(['vaca', 'caballo', 'oveja', 'chivo', 'burro', 'chiguire', 'cochino', 'gallina', 'corocora']);
 
@@ -118,6 +119,11 @@
 
   function actualizarFauna(dt) {
     if (zonaFauna !== Iso.mapa().zona.id) iniciarFauna();
+    const firma = Iso.firmaConstrucciones();
+    if (firma !== firmaFauna) { // se construyó algo: los animales ya no pisan ahí
+      firmaFauna = firma;
+      for (const a of fauna) { a.libres = Iso.casillasFauna(a.k); a.dest = null; }
+    }
     for (const a of fauna) {
       if (a.espera > 0) { a.espera -= dt; continue; }
       if (!a.dest) {
@@ -175,6 +181,11 @@
     if (!p) return;
 
     if (p.tipo === 'edificio') {
+      if (p.ed.accion === 'granero') {
+        const s = S.get();
+        cb.toast(`📦 Granero: guardas ${G.semillasGuardadas(s)} de ${G.capacidadSemillas(s)} semillas`, 'ok');
+        return;
+      }
       cb.abrirPanel(p.ed.accion === 'semillas' ? 'semillas' : 'cosecha');
       return;
     }
@@ -242,9 +253,60 @@
 
   // ---------- Toques ----------
 
+  // ---------- Modo construir ----------
+
+  let construir = null; // { tipo: 'parcela'|'granero', x, y, valido, fijo }
+
+  /** Casillas que no se pueden tapar ahora mismo: el jugador y los animales. */
+  function ocupadasAhora() {
+    const res = [{ tx: Math.floor(av.x), ty: Math.floor(av.y), quien: 'jugador' }];
+    for (const a of av.ruta) res.push({ tx: a.tx, ty: a.ty, quien: 'jugador' });
+    for (const a of fauna) {
+      res.push({ tx: Math.floor(a.x), ty: Math.floor(a.y), quien: 'animal' });
+      if (a.dest) res.push({ tx: Math.floor(a.dest.x), ty: Math.floor(a.dest.y), quien: 'animal' });
+    }
+    return res;
+  }
+
+  /** Esquina de arriba del bloque de 2x2 centrado en un punto de la pantalla. */
+  function origenEn(sx, sy) {
+    const m = aMundo(sx, sy);
+    const t = Iso.aTile(m.x, m.y);
+    return { x: Math.round(t.tx - 1), y: Math.round(t.ty - 1) };
+  }
+
+  function apuntarConstruccion(sx, sy) {
+    if (!construir || construir.fijo) return;
+    const o = origenEn(sx, sy);
+    construir.x = o.x; construir.y = o.y;
+    construir.valido = Iso.puedeColocar(construir.tipo, o.x, o.y, ocupadasAhora()).ok;
+  }
+
+  /** Entra (tipo) o sale (null) del modo construir. */
+  function modoConstruir(tipo) {
+    construir = tipo ? { tipo, x: null, y: null, valido: false, fijo: false } : null;
+    if (construir) { // al empezar, la vista previa aparece en el centro de la pantalla
+      apuntarConstruccion(w / 2, h / 2);
+    }
+    canvas.style.cursor = construir ? 'crosshair' : 'default';
+  }
+
+  /** Tras la confirmación: suelta la vista previa (o la deja si se canceló). */
+  function soltarConstruccion() { if (construir) construir.fijo = false; }
+
+  function clickConstruir(sx, sy) {
+    const o = origenEn(sx, sy);
+    const lugar = Iso.puedeColocar(construir.tipo, o.x, o.y, ocupadasAhora());
+    construir.x = o.x; construir.y = o.y; construir.valido = lugar.ok;
+    if (!lugar.ok) return cb.toast(G.textoRazon(lugar.razon), 'error');
+    construir.fijo = true;
+    cb.confirmarConstruccion(construir.tipo, o.x, o.y, ocupadasAhora());
+  }
+
   function alClick(sx, sy) {
     const estado = S.get();
     if (!estado.jugador.etnia || !estado.zona) return;
+    if (construir) return clickConstruir(sx, sy);
     const m = aMundo(sx, sy);
     const px = Math.floor(av.x), py = Math.floor(av.y);
 
@@ -287,7 +349,7 @@
     if (!Iso.dentro(tx, ty)) { hover = null; canvas.style.cursor = 'default'; return; }
     const parcela = Iso.parcelaEnTile(tx, ty);
     hover = { tx, ty, parcela };
-    canvas.style.cursor = parcela >= 0 || Iso.edificioEnPunto(m.x, m.y) ? 'pointer' : 'default';
+    canvas.style.cursor = construir ? 'crosshair' : parcela >= 0 || Iso.edificioEnPunto(m.x, m.y) ? 'pointer' : 'default';
   }
 
   function distancia() {
@@ -310,7 +372,7 @@
   function alMover(e) {
     const p = posicion(e);
     if (!punteros.has(e.pointerId)) {
-      if (e.pointerType === 'mouse') actualizarHover(p);
+      if (e.pointerType === 'mouse') { actualizarHover(p); apuntarConstruccion(p.x, p.y); }
       return;
     }
     const previo = punteros.get(e.pointerId);
@@ -362,7 +424,7 @@
       hover, marcador, particulas,
       seleccion: cb.obtenerSeleccion(),
       avatar: { x: av.x, y: av.y, dir: av.dir, frente: av.frente, caminando: av.caminando, salto: av.salto },
-      fauna, aves,
+      fauna, aves, construir,
     });
     if (cb.alCuadro) cb.alCuadro();
   }
@@ -424,5 +486,6 @@
     return { x: (p.x - cam.x) * cam.zoom + w / 2, y: (p.y - cam.y) * cam.zoom + h / 2 };
   }
 
-  Conuco.Mapa = { iniciar, reubicar, pantallaDeTile, mirarA, particula, posicionJugador: () => ({ x: av.x, y: av.y }) };
+  Conuco.Mapa = { iniciar, reubicar, pantallaDeTile, mirarA, particula, modoConstruir, soltarConstruccion,
+    construyendo: () => (construir ? construir.tipo : null), posicionJugador: () => ({ x: av.x, y: av.y }) };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -164,6 +164,25 @@ input { user-select: text; -webkit-user-select: text; }
 .chip.sin { opacity: 0.55; }
 .chip.nivel-bloq { opacity: 0.5; filter: grayscale(0.8); }
 
+.almacen {
+  flex: none; background: #f3e8cf; border-radius: 12px; padding: 5px 9px; font-size: 0.9rem; white-space: nowrap;
+}
+.almacen b { font-size: 0.78rem; }
+.almacen.lleno { background: #ffd9cf; color: #9a2a1a; }
+.almacen-barra { height: 10px; background: #e3d6b8; border-radius: 6px; overflow: hidden; margin: 6px 0 2px; }
+.almacen-barra i { display: block; height: 100%; background: linear-gradient(90deg, #6cbf3f, #9ee05a); }
+.almacen-barra i.lleno { background: linear-gradient(90deg, #e8583e, #f2a33a); }
+.info-almacen { background: #fff; border-radius: 14px; padding: 10px 12px; font-size: 0.82rem; color: var(--suave); }
+.info-almacen b { color: var(--texto); }
+
+.banner-construir {
+  position: fixed; z-index: 12; left: 50%; top: calc(72px + var(--sup)); transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center; width: max-content; max-width: calc(100vw - 20px);
+  background: #2b2118; color: #fff; border-radius: 16px; padding: 8px 8px 8px 14px; box-shadow: var(--sombra);
+  font-weight: 600; font-size: 0.9rem;
+}
+.banner-construir .btn { background: #fff; flex: none; }
+
 /* ---------- Panel de tienda / mercado ---------- */
 .panel-flotante {
   position: fixed; z-index: 20; background: #fffaf0; box-shadow: 0 -6px 28px rgba(40,25,10,0.3);
@@ -174,7 +193,7 @@ input { user-select: text; -webkit-user-select: text; }
 @keyframes subir { from { transform: translateY(40px); opacity: 0; } }
 .panel-cabeza { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; border-bottom: 1px solid #efe3c8; }
 .tabs { display: flex; gap: 6px; flex: 1; }
-.tab { flex: 1; border: 0; border-radius: 12px; padding: 10px; font-weight: 800; background: #f3e8cf; color: var(--suave); }
+.tab { flex: 1; border: 0; border-radius: 12px; padding: 10px 4px; white-space: nowrap; font-size: 0.9rem; font-weight: 800; background: #f3e8cf; color: var(--suave); }
 .tab.activa { background: var(--verde); color: #fff; }
 .btn-cerrar { border: 0; width: 38px; height: 38px; border-radius: 50%; background: #f3e8cf; font-weight: 800; }
 .panel-lista { overflow-y: auto; padding: 10px 12px 14px; display: grid; gap: 8px; }
@@ -310,7 +329,9 @@ input { user-select: text; -webkit-user-select: text; }
   .hud-nombre small { display: none; }
   .hud-dinero { padding: 8px 11px; font-size: 0.95rem; }
   .btn-accion { width: 56px; height: 56px; }
-  .hud-lateral { top: auto; bottom: calc(76px + var(--inf)); transform: none; }
+  .hud-lateral { top: auto; bottom: calc(76px + var(--inf)); transform: none; gap: 8px; }
+  .btn-accion { width: 54px; height: 54px; }
+  .seedbar-titulo { display: none; }
   .zoom-botones { flex-direction: row; display: none; }
   .hud-abajo { padding-right: 10px; }
   .opciones-zona { grid-template-columns: 1fr; gap: 8px; }

@@ -783,10 +783,69 @@
     }
   }
 
+  function granero(ctx, o) { // granero rojo de madera con techo a dos aguas y puerta en X
+    const alto = 34;
+    sombraEdificio(ctx, o);
+    const { B, R, L } = caja(ctx, o.x + 0.1, o.y + 0.1, o.w - 0.2, o.d - 0.2, alto, null, '#a52f25', '#c4402f');
+    // tablas verticales
+    ctx.strokeStyle = 'rgba(70,15,10,0.25)'; ctx.lineWidth = 1;
+    for (let k = 1; k < 8; k++) {
+      for (const [A, Bp] of [[L, B], [B, R]]) {
+        const a = lerp(A, Bp, k / 8);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, a.y - alto); ctx.stroke();
+      }
+    }
+    linea(ctx, B, sube(B, alto), '#f4efe4', 2.4);
+    linea(ctx, L, sube(L, alto), '#f4efe4', 2.4);
+    linea(ctx, R, sube(R, alto), '#f4efe4', 2.4);
+    // techo: cumbrera a lo largo de tx; hastial (triángulo) en la cara derecha
+    const e = 0.18, hz = alto;
+    const ym = o.y + o.d / 2;
+    const Tt = sube(P(o.x - e, o.y - e), hz), Rt = sube(P(o.x + o.w + e, o.y - e), hz);
+    const Bt = sube(P(o.x + o.w + e, o.y + o.d + e), hz), Lt = sube(P(o.x - e, o.y + o.d + e), hz);
+    const c0 = sube(P(o.x - e, ym), hz + 30), c1 = sube(P(o.x + o.w + e, ym), hz + 30);
+    // hastial (pared triangular sobre la cara derecha)
+    const hb = sube(P(o.x + o.w - 0.1, o.y + 0.1), alto), hc = sube(P(o.x + o.w - 0.1, o.y + o.d - 0.1), alto), hp = sube(P(o.x + o.w - 0.1, ym), alto + 28);
+    poli(ctx, [hb, hc, hp], '#c4402f');
+    poli(ctx, [lerp(hb, hp, 0.45), lerp(hc, hp, 0.45), lerp(lerp(hb, hc, 0.5), hp, 0.75)], '#4a1a12'); // ventanita del pajar
+    poli(ctx, [Tt, Rt, c1, c0], '#5d4a3e');
+    poli(ctx, [Lt, Bt, c1, c0], '#7a6352');
+    ctx.strokeStyle = 'rgba(30,20,15,0.3)'; ctx.lineWidth = 1;
+    for (let k = 1; k < 6; k++) { const a = lerp(Lt, c0, k / 6), b = lerp(Bt, c1, k / 6); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    linea(ctx, c0, c1, '#3f3129', 2.6);
+    ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = '#f4efe4';
+    ctx.beginPath(); ctx.moveTo(Bt.x, Bt.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(Rt.x, Rt.y); ctx.stroke();
+    // puerta grande con X blanca en la cara derecha
+    const pu = cara(B, R, 0.28, 0.72, 0, 24);
+    poli(ctx, pu, '#7d2219');
+    ctx.strokeStyle = '#f4efe4'; ctx.lineWidth = 2;
+    ctx.beginPath(); for (let k = 0; k < 4; k++) { const q = pu[k]; k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pu[0].x, pu[0].y); ctx.lineTo(pu[2].x, pu[2].y); ctx.moveTo(pu[1].x, pu[1].y); ctx.lineTo(pu[3].x, pu[3].y); ctx.stroke();
+    // sacos de semillas en la puerta
+    const sp = lerp(B, R, 0.86);
+    elipse(ctx, sp.x + 3, sp.y + 3, 5, 6.5, '#d9c28f'); elipse(ctx, sp.x + 3, sp.y - 3, 3, 1.4, '#b89a62');
+  }
+
   function edificio(ctx, o, t) {
     if (o.tipo === 'casa') casa(ctx, o);
     else if (o.tipo === 'churuata') churuata(ctx, o);
+    else if (o.tipo === 'granero') granero(ctx, o);
     else puesto(ctx, o, t);
+  }
+
+  /** Vista previa de lo que se va a construir: rombo verde (se puede) o rojo (no se puede). */
+  function fantasma(ctx, tipo, x, y, valido, t) {
+    const A = P(x, y), Bq = P(x + 2, y), Cq = P(x + 2, y + 2), D = P(x, y + 2);
+    const pulso = 0.25 + Math.sin(t * 5) * 0.08;
+    poli(ctx, [A, Bq, Cq, D], valido ? `rgba(120,230,90,${pulso + 0.15})` : `rgba(230,70,50,${pulso + 0.1})`);
+    ctx.lineWidth = 3; ctx.setLineDash([8, 5]);
+    poli(ctx, [A, Bq, Cq, D], null, valido ? '#e9ffd6' : '#ffd6cf');
+    ctx.setLineDash([]);
+    if (tipo === 'granero') {
+      ctx.globalAlpha = valido ? 0.6 : 0.35;
+      granero(ctx, { x, y, w: 2, d: 2 });
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ---------- Animales ----------
@@ -1068,6 +1127,6 @@
     poli, rombo, elipse, rr, circulo,
     fondoZona, isla, sueloTile, laguna, parcelaSuelo, parcelaBloqueadaBorde, terrenoVelo, letrero,
     parcelaResalte, tileResalte, esquinasParcela,
-    planta, FORMAS_GRANDES, arbol, edificio, avatar, animal, ave,
+    planta, FORMAS_GRANDES, arbol, edificio, fantasma, avatar, animal, ave,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

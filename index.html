@@ -42,6 +42,7 @@
   <aside class="hud-lateral">
     <button id="btn-tienda" class="btn-accion" type="button"><span class="ic">🌱</span><span>Semillas</span></button>
     <button id="btn-mercado" class="btn-accion" type="button"><span class="ic">🧺</span><span>Vender</span><i id="badge-cosecha" class="badge" hidden></i></button>
+    <button id="btn-construir" class="btn-accion" type="button"><span class="ic">🔨</span><span>Construir</span></button>
     <button id="btn-cosechar-todo" class="btn-accion verde" type="button"><span class="ic">🌾</span><span>Cosechar</span><i id="badge-listas" class="badge" hidden></i></button>
     <div class="zoom-botones">
       <button id="zoom-mas" class="btn-redondo chico" type="button" aria-label="Acercar">＋</button>
@@ -53,6 +54,7 @@
   <!-- ===== Semilla a sembrar (abajo) ===== -->
   <footer class="hud-abajo">
     <div class="seedbar-caja">
+      <span id="almacen" class="almacen" title="Semillas guardadas / capacidad del almacén">📦 <b>0/20</b></span>
       <span class="seedbar-titulo">Sembrar:</span>
       <div id="seedbar" class="seedbar"></div>
     </div>
@@ -64,13 +66,21 @@
       <div class="tabs" role="tablist">
         <button id="tab-semillas" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-semillas" type="button">🌱 Semillas</button>
         <button id="tab-cosecha" class="tab" role="tab" aria-selected="false" aria-controls="panel-cosecha" type="button">🧺 Vender</button>
+        <button id="tab-construir" class="tab" role="tab" aria-selected="false" aria-controls="panel-construir" type="button">🔨 Construir</button>
       </div>
       <h2 id="t-panel" class="oculto">Mercado local</h2>
       <button id="btn-cerrar-panel" class="btn-cerrar" type="button" aria-label="Cerrar">✕</button>
     </div>
     <div id="panel-semillas" class="panel-lista" role="tabpanel"></div>
     <div id="panel-cosecha" class="panel-lista" role="tabpanel" hidden></div>
+    <div id="panel-construir" class="panel-lista" role="tabpanel" hidden></div>
   </section>
+
+  <!-- ===== Aviso del modo construir ===== -->
+  <div id="banner-construir" class="banner-construir" role="status" hidden>
+    <span id="banner-texto"></span>
+    <button id="btn-salir-construir" class="btn chico" type="button">✕ Terminar</button>
+  </div>
 
   <!-- ===== Configuración guiada (personaje, nombre y zona) ===== -->
   <div id="asistente" class="modal" role="dialog" aria-modal="true" aria-labelledby="t-asistente" hidden>
