@@ -2,6 +2,8 @@
 
 Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Siembra maíz, yuca, caraota, plátano, cacao y café; vende en el mercado local, gana bolívares y XP, sube de nivel y desbloquea más parcelas.
 
+🎮 **Jugar:** https://mi-conuco.netlify.app
+
 **100% en el navegador**: sin servidor, sin base de datos, sin dependencias. La partida se guarda en `localStorage`.
 
 ## Cómo probarlo
