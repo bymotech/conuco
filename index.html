@@ -40,8 +40,10 @@
 
   <!-- ===== Botones de acción (derecha) ===== -->
   <aside class="hud-lateral">
-    <button id="btn-tienda" class="btn-accion" type="button"><span class="ic">🌱</span><span>Semillas</span></button>
-    <button id="btn-mercado" class="btn-accion" type="button"><span class="ic">🧺</span><span>Vender</span><i id="badge-cosecha" class="badge" hidden></i></button>
+    <button id="btn-granero" class="btn-accion" type="button" title="Lo que tienes: semillas y cosecha">
+      <canvas class="icono" data-icono="granero" width="96" height="96" aria-hidden="true"></canvas><span>Granero</span><i id="badge-cosecha" class="badge" hidden></i></button>
+    <button id="btn-mercado" class="btn-accion" type="button" title="Comprar semillas y vender cosecha">
+      <canvas class="icono" data-icono="mercado" width="96" height="96" aria-hidden="true"></canvas><span>Mercado</span></button>
     <button id="btn-construir" class="btn-accion" type="button"><span class="ic">🔨</span><span>Construir</span></button>
     <button id="btn-cosechar-todo" class="btn-accion verde" type="button"><span class="ic">🌾</span><span>Cosechar</span><i id="badge-listas" class="badge" hidden></i></button>
     <div class="zoom-botones">
@@ -64,15 +66,22 @@
   <section id="panel" class="panel-flotante" aria-labelledby="t-panel" hidden>
     <div class="panel-cabeza">
       <div class="tabs" role="tablist">
-        <button id="tab-semillas" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-semillas" type="button">🌱 Semillas</button>
-        <button id="tab-cosecha" class="tab" role="tab" aria-selected="false" aria-controls="panel-cosecha" type="button">🧺 Vender</button>
+        <button id="tab-granero" class="tab activa" role="tab" aria-selected="true" aria-controls="panel-granero" type="button">🛖 Granero</button>
+        <button id="tab-mercado" class="tab" role="tab" aria-selected="false" aria-controls="panel-mercado" type="button">🧺 Mercado</button>
         <button id="tab-construir" class="tab" role="tab" aria-selected="false" aria-controls="panel-construir" type="button">🔨 Construir</button>
       </div>
       <h2 id="t-panel" class="oculto">Mercado local</h2>
       <button id="btn-cerrar-panel" class="btn-cerrar" type="button" aria-label="Cerrar">✕</button>
     </div>
-    <div id="panel-semillas" class="panel-lista" role="tabpanel"></div>
-    <div id="panel-cosecha" class="panel-lista" role="tabpanel" hidden></div>
+    <div id="panel-granero" class="panel-lista" role="tabpanel"></div>
+    <div id="panel-mercado" class="panel-lista" role="tabpanel" hidden>
+      <div class="segmento" role="group" aria-label="Mercado">
+        <button id="seg-comprar" class="activo" type="button">🛒 Comprar</button>
+        <button id="seg-vender" type="button">💰 Vender <i id="badge-vender" class="mini-badge" hidden></i></button>
+      </div>
+      <div id="mercado-comprar" class="panel-sub"></div>
+      <div id="mercado-vender" class="panel-sub" hidden></div>
+    </div>
     <div id="panel-construir" class="panel-lista" role="tabpanel" hidden></div>
   </section>
 

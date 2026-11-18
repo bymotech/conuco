@@ -26,7 +26,7 @@ Juego de cosecha estilo *FarmTown* ambientado en el conuco venezolano. Elige tu 
 
 2. **Guía de primeros pasos:** burbujas te indican qué hacer (sembrar → cosechar → vender → comprar semillas) y desaparecen cuando lo haces. Se puede volver a ver desde el menú ☰.
 3. Elige la semilla en la barra de abajo y **toca una parcela**: tu personaje camina hasta ella y al llegar siembra, cosecha o (si tienes el dinero) la compra.
-4. Toca la **choza 🌱** o el botón *Semillas* para comprar semillas, y el **puesto 🧺** o *Vender* para vender la cosecha.
+4. **🛖 Granero** (botón o la choza del mapa): lo que tienes — semillas, cosecha guardada y capacidad del almacén. **🧺 Mercado** (botón o el puesto): comprar semillas y vender la cosecha.
 5. **Terrenos:** el mapa tiene 3x3 terrenos. Empiezas en el del centro; los demás aparecen bloqueados con un letrero *SE VENDE*. Tócalo para comprarlo (debe tocar por un lado a un terreno tuyo y necesitas el dinero). Cada terreno trae 9 parcelas listas; el precio se duplica con cada compra (600, 1.200, 2.400…).
 6. **Construir (🔨):** pon **parcelas nuevas** (2x2) en cualquier espacio libre de tus terrenos —sin árboles, edificios, agua ni animales— y **graneros**. Eliges el lugar en el mapa (verde = se puede, rojo = no) y confirmas. La parcela extra cuesta Bs 150 y sube 18% cada vez; el granero cuesta Bs 250 y se duplica (máximo 6). El granero no puede ir sobre el camino ni cerrar el paso.
 7. **Almacén de semillas (📦):** tope de 20 semillas al empezar, +10 por cada nivel y +40 por cada granero. Si está lleno, no se pueden comprar más semillas.

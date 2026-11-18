@@ -65,9 +65,9 @@
     {
       id: 'comprar',
       hecho: (s) => s.estadisticas.semillasCompradas > 0,
-      texto: () => '🌱 Con esa plata compra más semillas en la choza de Semillas.',
-      ancla: () => centroEdificio('semillas'),
-      boton: 'btn-tienda',
+      texto: () => '🛒 Con esa plata compra más semillas en el Mercado. Lo que tienes lo ves en tu 🛖 Granero.',
+      ancla: () => centroEdificio('mercado'),
+      boton: 'btn-mercado',
     },
     {
       id: 'expandir',

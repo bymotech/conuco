@@ -27,7 +27,8 @@
 
   // ---------- Estado de la interfaz (no se guarda) ----------
   let seleccion = null;        // id de la semilla elegida para sembrar
-  let tabActiva = 'semillas';
+  let tabActiva = 'granero';
+  let subMercado = 'comprar';  // 'comprar' | 'vender'
   let el = {};
   let nivelVisto = null;       // para detectar cuándo se sube de nivel
   let dineroVisto = null;
@@ -53,6 +54,25 @@
   function mostrar(res) {
     if (!res) return;
     toast(res.mensaje, res.ok ? 'ok' : 'error');
+  }
+
+  // ---------- Íconos de los botones (dibujados con el mismo arte del mapa) ----------
+  function dibujarIconos() {
+    const Sp = Conuco.Sprites, Iso = Conuco.Iso;
+    doc.querySelectorAll('canvas[data-icono]').forEach((c) => {
+      const ctx = c.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+      if (c.dataset.icono === 'granero') {
+        const centro = Iso.aPantalla(1, 1);
+        ctx.setTransform(0.62, 0, 0, 0.62, 48 - centro.x * 0.62, 60 - centro.y * 0.62 + 6);
+        Sp.edificio(ctx, { tipo: 'granero', x: 0, y: 0, w: 2, d: 2 }, 0);
+      } else {
+        const centro = Iso.aPantalla(0.5, 1);
+        ctx.setTransform(0.95, 0, 0, 0.95, 48 - centro.x * 0.95, 62 - centro.y * 0.95 + 4);
+        Sp.edificio(ctx, { tipo: 'puesto', x: 0, y: 0, w: 1, d: 2 }, 0);
+      }
+    });
   }
 
   // ---------- Barra de arriba ----------
@@ -85,6 +105,8 @@
     const cosecha = Object.values(s.cosechas).reduce((a, b) => a + b, 0);
     el.badgeCosecha.hidden = !cosecha;
     setTexto(el.badgeCosecha, String(cosecha));
+    el.badgeVender.hidden = !cosecha;
+    setTexto(el.badgeVender, String(cosecha));
   }
 
   // ---------- Selector de semillas ----------
@@ -116,7 +138,7 @@
     }).join('');
   }
 
-  // ---------- Panel: tienda de semillas ----------
+  // ---------- Mercado: comprar semillas ----------
   function renderSemillas() {
     const s = S.get();
     const nivel = G.nivelDeXp(s.xp);
@@ -126,7 +148,7 @@
       <div class="almacen-barra"><i class="${libre ? '' : 'lleno'}" style="width:${Math.min(100, Math.round((guardadas / cap) * 100))}%"></i></div>
       ${libre ? `Te caben ${libre} más.` : '¡Lleno!'} Sube de nivel (+${Conuco.CONFIG.ALMACEN_POR_NIVEL}) o construye un granero (+${Conuco.CONFIG.ALMACEN_POR_GRANERO}) para guardar más.</div>`;
     const btnCompra = (c, n) => `<button class="btn" type="button" data-accion="comprar" data-id="${c.id}" data-n="${n}" ${s.dinero < c.costoSemilla * n || n > libre ? 'disabled' : ''}>×${n} · ${fmtBs(c.costoSemilla * n)}</button>`;
-    el.panelSemillas.innerHTML = cab + G.cultivosDisponibles(s).map((c) => {
+    el.mercadoComprar.innerHTML = cab + G.cultivosDisponibles(s).map((c) => {
       const bloq = c.nivelReq > nivel;
       const tengo = s.semillas[c.id] || 0;
       const det = bloq
@@ -142,12 +164,12 @@
     }).join('');
   }
 
-  // ---------- Panel: venta de cosecha ----------
+  // ---------- Mercado: vender cosecha ----------
   function renderCosecha() {
     const s = S.get();
     const filas = Object.keys(s.cosechas).map((id) => POR_ID[id]).filter(Boolean);
     if (!filas.length) {
-      el.panelCosecha.innerHTML = '<div class="vacio">🧺 Aún no tienes cosecha.<br>Siembra, espera y cosecha para vender aquí.</div>';
+      el.mercadoVender.innerHTML = '<div class="vacio">🧺 Aún no tienes cosecha para vender.<br>Siembra, espera y cosecha; luego tráela aquí.</div>';
       return;
     }
     let total = 0;
@@ -163,7 +185,41 @@
         </div>
       </div>`;
     }).join('');
-    el.panelCosecha.innerHTML = `<button class="btn btn-primary total" type="button" data-accion="vender-todo">💰 Vender toda la cosecha (${fmtBs(total)})</button>` + html;
+    el.mercadoVender.innerHTML = `<button class="btn btn-primary total" type="button" data-accion="vender-todo">💰 Vender toda la cosecha (${fmtBs(total)})</button>` + html;
+  }
+
+  // ---------- Granero: lo que tiene el conuquero ----------
+  function renderGranero() {
+    const s = S.get();
+    const nivel = G.nivelDeXp(s.xp);
+    const guardadas = G.semillasGuardadas(s), cap = G.capacidadSemillas(s), libre = G.espacioSemillas(s);
+    const semillas = Object.keys(s.semillas).map((id) => POR_ID[id]).filter(Boolean);
+    const cosecha = Object.keys(s.cosechas).map((id) => POR_ID[id]).filter(Boolean);
+    let valor = 0;
+    cosecha.forEach((c) => { valor += s.cosechas[c.id] * c.precioVenta; });
+    const filaSemilla = (c) => {
+      const bloq = c.nivelReq > nivel;
+      return `<div class="fila">
+        <span class="em">${c.emoji}</span>
+        <div><div class="nombre">${c.nombre} <span class="cant">×${s.semillas[c.id]}</span></div>
+          <div class="det">${bloq ? `Se puede sembrar desde el nivel ${c.nivelReq}` : `Crece en ${fmtDuracion(c.tiempoMs)} · da ${c.rendimiento}`}</div></div>
+        <div class="acciones">${bloq ? '' : `<button class="btn ${c.id === seleccion ? 'btn-primary' : ''}" type="button" data-sembrar="${c.id}">${c.id === seleccion ? '✔ Elegida para sembrar' : 'Sembrar esta'}</button>`}</div>
+      </div>`;
+    };
+    const filaCosecha = (c) => `<div class="fila">
+        <span class="em">${c.emoji}</span>
+        <div><div class="nombre">${c.nombre} <span class="cant">×${s.cosechas[c.id]}</span></div>
+          <div class="det">Vale ${fmtBs(c.precioVenta)} c/u en el mercado · ${fmtBs(s.cosechas[c.id] * c.precioVenta)}</div></div>
+      </div>`;
+    el.panelGranero.innerHTML = `
+      <div class="info-almacen">📦 <b>${guardadas} / ${cap} semillas</b> · ${s.graneros.length} granero(s) construido(s)
+        <div class="almacen-barra"><i class="${libre ? '' : 'lleno'}" style="width:${Math.min(100, Math.round((guardadas / cap) * 100))}%"></i></div>
+        ${libre ? `Te caben ${libre} más.` : '¡Lleno!'} Cada nivel suma ${Conuco.CONFIG.ALMACEN_POR_NIVEL} y cada granero ${Conuco.CONFIG.ALMACEN_POR_GRANERO} (se construyen en 🔨).</div>
+      <div class="titulo-seccion">🌱 Semillas</div>
+      ${semillas.length ? semillas.map(filaSemilla).join('') : '<div class="vacio">No tienes semillas. Cómpralas en el 🧺 Mercado.</div>'}
+      <div class="titulo-seccion">🧺 Cosecha guardada</div>
+      ${cosecha.length ? cosecha.map(filaCosecha).join('') + `<button class="btn btn-primary total" type="button" data-ir-vender>💰 Llevar al mercado (${fmtBs(valor)})</button>`
+        : '<div class="vacio">Todavía no has cosechado nada.</div>'}`;
   }
 
   // ---------- Panel: construir ----------
@@ -232,7 +288,7 @@
 
   function cambiarTab(nombre) {
     tabActiva = nombre;
-    const pares = [['semillas', el.tabSemillas, el.panelSemillas], ['cosecha', el.tabCosecha, el.panelCosecha], ['construir', el.tabConstruir, el.panelConstruir]];
+    const pares = [['granero', el.tabGranero, el.panelGranero], ['mercado', el.tabMercado, el.panelMercado], ['construir', el.tabConstruir, el.panelConstruir]];
     for (const [id, tab, panel] of pares) {
       const activa = id === nombre;
       panel.hidden = !activa;
@@ -241,10 +297,20 @@
     }
   }
 
-  /** Abre el panel en una pestaña (lo usa también el mapa al llegar a la choza o al puesto). */
-  function abrirPanel(nombre) {
+  /** Mercado: alterna entre comprar semillas y vender cosecha. */
+  function cambiarSub(sub) {
+    subMercado = sub;
+    el.mercadoComprar.hidden = sub !== 'comprar';
+    el.mercadoVender.hidden = sub !== 'vender';
+    el.segComprar.classList.toggle('activo', sub === 'comprar');
+    el.segVender.classList.toggle('activo', sub === 'vender');
+  }
+
+  /** Abre el panel en una pestaña (lo usa también el mapa al llegar al granero o al puesto). */
+  function abrirPanel(nombre, sub) {
     if (Conuco.Mapa.construyendo()) salirConstruir();
     cambiarTab(nombre);
+    if (sub) cambiarSub(sub);
     el.panel.hidden = false;
   }
   const cerrarPanel = () => { el.panel.hidden = true; };
@@ -398,6 +464,7 @@
   function renderTodo() {
     renderHud();
     renderSeedbar();
+    renderGranero();
     renderSemillas();
     renderCosecha();
     renderConstruir();
@@ -413,9 +480,10 @@
     if (!b) return;
     const c = POR_ID[b.dataset.id];
     if (c.nivelReq > G.nivelDeXp(S.get().xp)) return toast(`${c.nombre} se desbloquea en el nivel ${c.nivelReq}.`, 'error');
-    if (!(S.get().semillas[c.id] > 0)) { abrirPanel('semillas'); return toast(`No tienes semillas de ${c.nombre}. Cómpralas aquí 🌱`); }
+    if (!(S.get().semillas[c.id] > 0)) { abrirPanel('mercado', 'comprar'); return toast(`No tienes semillas de ${c.nombre}. Cómpralas aquí 🛒`); }
     seleccion = c.id;
     renderSeedbar();
+    renderGranero();
   }
 
   function alTocarMercado(ev) {
@@ -436,9 +504,11 @@
       xpBarra: $('xp-barra'), xpTexto: $('xp-texto'), hudNombre: $('hud-nombre'), hudZona: $('hud-zona'),
       miniAvatar: $('mini-avatar'), badgeCosecha: $('badge-cosecha'), badgeListas: $('badge-listas'),
       seedbar: $('seedbar'), btnCosecharTodo: $('btn-cosechar-todo'),
-      btnTienda: $('btn-tienda'), btnMercado: $('btn-mercado'),
-      panel: $('panel'), tabSemillas: $('tab-semillas'), tabCosecha: $('tab-cosecha'),
-      panelSemillas: $('panel-semillas'), panelCosecha: $('panel-cosecha'),
+      btnGranero: $('btn-granero'), btnMercado: $('btn-mercado'),
+      panel: $('panel'), tabGranero: $('tab-granero'), tabMercado: $('tab-mercado'),
+      panelGranero: $('panel-granero'), panelMercado: $('panel-mercado'),
+      mercadoComprar: $('mercado-comprar'), mercadoVender: $('mercado-vender'),
+      segComprar: $('seg-comprar'), segVender: $('seg-vender'), badgeVender: $('badge-vender'),
       tabConstruir: $('tab-construir'), panelConstruir: $('panel-construir'),
       almacen: $('almacen'), banner: $('banner-construir'), bannerTexto: $('banner-texto'),
       toasts: $('toasts'), aviso: $('aviso-almacenamiento'),
@@ -520,14 +590,21 @@
 
     // --- panel y botones
     el.seedbar.addEventListener('click', alTocarSemilla);
-    el.panelSemillas.addEventListener('click', alTocarMercado);
-    el.panelCosecha.addEventListener('click', alTocarMercado);
-    el.btnTienda.addEventListener('click', () => (el.panel.hidden || tabActiva !== 'semillas' ? abrirPanel('semillas') : cerrarPanel()));
-    el.btnMercado.addEventListener('click', () => (el.panel.hidden || tabActiva !== 'cosecha' ? abrirPanel('cosecha') : cerrarPanel()));
+    el.panelMercado.addEventListener('click', alTocarMercado);
+    el.segComprar.addEventListener('click', () => cambiarSub('comprar'));
+    el.segVender.addEventListener('click', () => cambiarSub('vender'));
+    el.panelGranero.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-sembrar], [data-ir-vender]');
+      if (!b) return;
+      if (b.dataset.sembrar) { seleccion = b.dataset.sembrar; renderSeedbar(); renderGranero(); cerrarPanel(); toast(`${POR_ID[seleccion].emoji} Toca una parcela vacía para sembrar`); }
+      else abrirPanel('mercado', 'vender');
+    });
+    el.btnGranero.addEventListener('click', () => (el.panel.hidden || tabActiva !== 'granero' ? abrirPanel('granero') : cerrarPanel()));
+    el.btnMercado.addEventListener('click', () => (el.panel.hidden || tabActiva !== 'mercado' ? abrirPanel('mercado') : cerrarPanel()));
     $('btn-cerrar-panel').addEventListener('click', cerrarPanel);
     el.btnCosecharTodo.addEventListener('click', () => mostrar(G.cosecharTodo()));
-    el.tabSemillas.addEventListener('click', () => cambiarTab('semillas'));
-    el.tabCosecha.addEventListener('click', () => cambiarTab('cosecha'));
+    el.tabGranero.addEventListener('click', () => cambiarTab('granero'));
+    el.tabMercado.addEventListener('click', () => cambiarTab('mercado'));
     el.tabConstruir.addEventListener('click', () => cambiarTab('construir'));
     el.panelConstruir.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-construir]');
@@ -535,7 +612,7 @@
     });
     $('btn-construir').addEventListener('click', () => (el.panel.hidden || tabActiva !== 'construir' ? abrirPanel('construir') : cerrarPanel()));
     $('btn-salir-construir').addEventListener('click', salirConstruir);
-    el.almacen.addEventListener('click', () => abrirPanel('semillas'));
+    el.almacen.addEventListener('click', () => abrirPanel('granero'));
     doc.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Escape') return;
       if (!el.confirmar.hidden) el.confNo.click();
@@ -545,7 +622,9 @@
     });
 
     S.suscribir(renderTodo); // cualquier cambio de estado redibuja la interfaz
+    dibujarIconos();
     cambiarTab(tabActiva);
+    cambiarSub(subMercado);
     renderTodo();
   }
 

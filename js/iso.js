@@ -129,7 +129,7 @@
     const o = origenTerreno(M.TERRENO_INICIAL);
     const edificios = [
       { id: 'casa',     tipo: 'casa',     x: o.x + 0,  y: o.y + 0,  w: 2, d: 2, alto: 84 },
-      { id: 'churuata', tipo: 'churuata', x: o.x + 10, y: o.y + 0,  w: 2, d: 2, alto: 82, accion: 'semillas', etiqueta: '🌱 Semillas' },
+      { id: 'churuata', tipo: 'churuata', x: o.x + 10, y: o.y + 0,  w: 2, d: 2, alto: 82, accion: 'granero', etiqueta: '🛖 Granero' },
       { id: 'puesto',   tipo: 'puesto',   x: o.x + 0,  y: o.y + 10, w: 1, d: 2, alto: 60, accion: 'mercado',  etiqueta: '🧺 Mercado' },
     ];
     const ocupar = (x, y, w, d) => { for (let j = y; j < y + d; j++) for (let i = x; i < x + w; i++) bloqueado[j * M.ANCHO + i] = 1; };

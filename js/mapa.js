@@ -181,12 +181,9 @@
     if (!p) return;
 
     if (p.tipo === 'edificio') {
-      if (p.ed.accion === 'granero') {
-        const s = S.get();
-        cb.toast(`📦 Granero: guardas ${G.semillasGuardadas(s)} de ${G.capacidadSemillas(s)} semillas`, 'ok');
-        return;
-      }
-      cb.abrirPanel(p.ed.accion === 'semillas' ? 'semillas' : 'cosecha');
+      // en el mercado, si traes cosecha se abre directo en "Vender"
+      if (p.ed.accion === 'mercado') cb.abrirPanel('mercado', Object.keys(S.get().cosechas).length ? 'vender' : 'comprar');
+      else cb.abrirPanel('granero');
       return;
     }
 
@@ -209,7 +206,7 @@
     } else {
       const sel = cb.obtenerSeleccion();
       if (!sel) {
-        cb.toast('No tienes semillas. Cómpralas en la choza 🌱 Semillas.', 'error');
+        cb.toast('No tienes semillas. Cómpralas en el 🧺 Mercado.', 'error');
       } else {
         res = G.plantar(p.idx, sel, ahora);
         if (res.ok) particula('🌱', cx, cy);
